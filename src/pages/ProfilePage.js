@@ -10,12 +10,32 @@ function ProfilePage() {
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [selectedGenres, setSelectedGenres] = useState([]);
+  const [selectedSubGenres, setSelectedSubGenres] = useState({
+    House: [],
+    Techno: [],
+    DnB: [],
+    Dubstep: [],
+    Trance: [],
+    Hardstyle: [],
+    Disco: [],
+  });
   const [profilePicture, setProfilePicture] = useState(null);
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const genres = ['EDM', 'Techno', 'Pop', 'Rock', 'Hip-Hop', 'Jazz'];
+
+  const genres = ['Techno', 'House', 'DnB', 'Trance', 'Dubstep', 'Hardstyle', 'Disco'];
+
+  const subGenres = {
+    House: ['Deep House', 'Tropical House', 'Progressive House', 'Electro House'],
+    Techno: ['Industrial', 'Deep', 'Melodic', 'Ambient'],
+    DnB: ['Liquid', 'Neuro', 'Jungle'],
+    Dubstep: ['Brostep', 'Melodic', 'Chillstep', 'Drumstep'],
+    Trance: ['Tech', 'Goa', 'Hard', 'Melodic'],
+    Hardstyle: ['Rawstyle', 'Euphoric', 'Early Hardstyle'],
+    Disco: ['Nu-Disco', 'Dance-Punk', 'Eurodisco', 'Italo'],
+  };
 
   const handleLogout = async () => {
     try {
@@ -25,10 +45,7 @@ function ProfilePage() {
       console.error('Failed to log out:', err);
     }
   };
-  
-  
 
-  // Fetch user data on component mount
   useEffect(() => {
     const fetchUserData = async () => {
       const user = auth.currentUser;
@@ -41,6 +58,15 @@ function ProfilePage() {
           setUsername(userData.username || '');
           setBio(userData.bio || '');
           setSelectedGenres(userData.genres || []);
+          setSelectedSubGenres(userData.subGenres || {
+            House: [],
+            Techno: [],
+            DnB: [],
+            Dubstep: [],
+            Trance: [],
+            Hardstyle: [],
+            Disco: [],
+          });
           setProfilePictureUrl(userData.profilePicture || '');
         }
       } catch (err) {
@@ -54,8 +80,26 @@ function ProfilePage() {
   const handleGenreChange = (genre) => {
     if (selectedGenres.includes(genre)) {
       setSelectedGenres(selectedGenres.filter((g) => g !== genre));
+      if (subGenres[genre]) {
+        setSelectedSubGenres({ ...selectedSubGenres, [genre]: [] });
+      }
     } else {
       setSelectedGenres([...selectedGenres, genre]);
+    }
+  };
+
+  const handleSubGenreChange = (genre, subgenre) => {
+    const current = selectedSubGenres[genre] || [];
+    if (current.includes(subgenre)) {
+      setSelectedSubGenres({
+        ...selectedSubGenres,
+        [genre]: current.filter((sg) => sg !== subgenre),
+      });
+    } else {
+      setSelectedSubGenres({
+        ...selectedSubGenres,
+        [genre]: [...current, subgenre],
+      });
     }
   };
 
@@ -76,7 +120,6 @@ function ProfilePage() {
 
       let newProfilePictureUrl = profilePictureUrl;
 
-      // Upload new profile picture to Firebase Storage if selected
       if (profilePicture) {
         const fileRef = ref(storage, `profilePictures/${user.uid}`);
         await uploadBytes(fileRef, profilePicture);
@@ -84,11 +127,11 @@ function ProfilePage() {
         setProfilePictureUrl(newProfilePictureUrl);
       }
 
-      // Update user data in Firestore
       await updateDoc(doc(db, 'users', user.uid), {
         username,
         bio,
         genres: selectedGenres,
+        subGenres: selectedSubGenres,
         profilePicture: newProfilePictureUrl,
       });
 
@@ -147,32 +190,59 @@ function ProfilePage() {
         <Typography variant="h6" sx={{ mt: 2, mb: 2 }}>
           Choose Your Music Taste
         </Typography>
-        <Box sx={{ mb: 2 }}>
-          {genres.map((genre) => (
-            <FormControlLabel
-              key={genre}
-              control={
-                <Checkbox
-                  checked={selectedGenres.includes(genre)}
-                  onChange={() => handleGenreChange(genre)}
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
+          {genres.map((genre) => {
+            const label = genre === 'DnB' ? 'D&B' : genre;
+            return (
+              <Box key={genre}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={selectedGenres.includes(genre)}
+                      onChange={() => handleGenreChange(genre)}
+                    />
+                  }
+                  label={<Typography variant="body1">{label}</Typography>}
                 />
-              }
-              label={genre}
-            />
-          ))}
+                {selectedGenres.includes(genre) && subGenres[genre] && (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', pl: 4, mt: 1 }}>
+                    {subGenres[genre].map((sub) => (
+                      <FormControlLabel
+                        key={sub}
+                        control={
+                          <Checkbox
+                            size="small"
+                            checked={selectedSubGenres[genre]?.includes(sub)}
+                            onChange={() => handleSubGenreChange(genre, sub)}
+                          />
+                        }
+                        label={
+                          <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                            {sub}
+                          </Typography>
+                        }
+                      />
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            );
+          })}
         </Box>
+
         <Button
           type="submit"
           variant="contained"
           color="primary"
           fullWidth
-          sx={{ fontWeight: 'bold' }}
+          sx={{ fontWeight: 'bold', mb: 1 }}
           disabled={uploading}
         >
           {uploading ? <CircularProgress size={24} /> : 'Save Changes'}
         </Button>
-        <Button variant="contained" color="primary" onClick={handleLogout}>
-            Log Out
+        <Button variant="contained" color="primary" onClick={handleLogout} fullWidth>
+          Log Out
         </Button>
       </form>
     </Container>
