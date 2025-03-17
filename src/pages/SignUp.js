@@ -1,18 +1,50 @@
 import React, { useState } from 'react';
-import { TextField, Button, Container, Typography, Box } from '@mui/material';
+import { TextField, Button, Container, Typography, Box, CircularProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { auth, db } from '../firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 function SignUp() {
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Add validation and backend logic here
-    navigate('/account-setup');
+    setLoading(true);
+    setError('');
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Create a new user with email/password
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Save user data to Firestore
+      await setDoc(doc(db, 'users', user.uid), {
+        email: user.email,
+        username,
+        bio: '',
+        genres: [],
+        profilePicture: '',
+      });
+
+      navigate('/account-setup');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -20,6 +52,11 @@ function SignUp() {
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: '#1976d2' }}>
         Sign Up
       </Typography>
+      {error && (
+        <Typography variant="body1" sx={{ color: 'red', mb: 2 }}>
+          {error}
+        </Typography>
+      )}
       <form onSubmit={handleSubmit}>
         <TextField
           fullWidth
@@ -32,11 +69,11 @@ function SignUp() {
         />
         <TextField
           fullWidth
-          label="Phone Number"
-          type="tel"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          label="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
           sx={{ mb: 2 }}
+          required
         />
         <TextField
           fullWidth
@@ -56,19 +93,26 @@ function SignUp() {
           sx={{ mb: 2 }}
           required
         />
-        <Button type="submit" variant="contained" color="primary" fullWidth sx={{ fontWeight: 'bold' }}>
-          Sign Up
+        <Button
+          type="submit"
+          variant="contained"
+          color="primary"
+          fullWidth
+          sx={{ fontWeight: 'bold' }}
+          disabled={loading}
+        >
+          {loading ? <CircularProgress size={24} /> : 'Sign Up'}
         </Button>
       </form>
       <Box sx={{ mt: 2 }}>
         <Button
-          variant="outlined"
+          variant="text"
           color="primary"
           fullWidth
           sx={{ fontWeight: 'bold' }}
           onClick={() => navigate('/login')}
         >
-          Sign Up with Google
+          Already have an account? Log In
         </Button>
       </Box>
     </Container>

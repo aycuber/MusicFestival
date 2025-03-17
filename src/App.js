@@ -11,6 +11,8 @@ import FriendsPage from './pages/FriendsPage';
 import MessagingPage from './pages/MessagingPage';
 import FestivalDetailsPage from './pages/FestivalDetailsPage';
 import GroupsPage from './pages/GroupsPage';
+import AccountSetup from './pages/AccountSetup';
+import FriendProfilePage from './pages/FriendProfilePage';
 
 function App() {
   return (
@@ -27,6 +29,9 @@ function App() {
         <Route path="/messaging" element={<MessagingPage />} />
         <Route path="/festival/:id" element={<FestivalDetailsPage />} />
         <Route path="/groups" element={<GroupsPage />} />
+        <Route path="/account-setup" element={<AccountSetup />} />
+        <Route path="/profile/:friendId" element={<FriendProfilePage />} />
+        <Route path="/messages/:friendId" element={<MessagingPage />} />
       </Routes>
     </Router>
   );
