@@ -1,5 +1,10 @@
+// App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { ThemeProvider, CssBaseline } from '@mui/material';
+
+import theme, { MyAppBar } from './theme/theme';
+
 import LandingPage from './pages/LandingPage';
 import SignUp from './pages/SignUp';
 import Login from './pages/Login';
@@ -16,24 +21,31 @@ import FriendProfilePage from './pages/FriendProfilePage';
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/signup" element={<SignUp />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/home" element={<HomePage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/explore" element={<ExplorePage />} />
-        <Route path="/search" element={<SearchPage />} />
-        <Route path="/friends" element={<FriendsPage />} />
-        <Route path="/messaging" element={<MessagingPage />} />
-        <Route path="/festival/:id" element={<FestivalDetailsPage />} />
-        <Route path="/groups" element={<GroupsPage />} />
-        <Route path="/account-setup" element={<AccountSetup />} />
-        <Route path="/profile/:friendId" element={<FriendProfilePage />} />
-        <Route path="/messages/:friendId" element={<MessagingPage />} />
-      </Routes>
-    </Router>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+
+      {/* Router must wrap both the AppBar and the Routes for navigation to work */}
+      <Router>
+        <MyAppBar />
+
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/signup" element={<SignUp />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/home" element={<HomePage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/explore" element={<ExplorePage />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/friends" element={<FriendsPage />} />
+          <Route path="/messaging" element={<MessagingPage />} />
+          <Route path="/festival/:id" element={<FestivalDetailsPage />} />
+          <Route path="/groups" element={<GroupsPage />} />
+          <Route path="/account-setup" element={<AccountSetup />} />
+          <Route path="/profile/:friendId" element={<FriendProfilePage />} />
+          <Route path="/messages/:friendId" element={<MessagingPage />} />
+        </Routes>
+      </Router>
+    </ThemeProvider>
   );
 }
 

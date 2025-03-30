@@ -1,37 +1,40 @@
 import React from 'react';
-import { Button, Container, Typography, Box } from '@mui/material';
+import { Box, Typography, Button } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
 function LandingPage() {
   const navigate = useNavigate();
 
   return (
-    <Container maxWidth="sm" sx={{ textAlign: 'center', mt: 10 }}>
-      <Typography variant="h2" gutterBottom sx={{ fontWeight: 'bold', color: '#1976d2' }}>
-        Find Your Next Event
+    <Box
+      sx={{
+        minHeight: '100vh',
+        backgroundColor: 'background.default',
+        color: 'text.primary',
+        textAlign: 'center',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        px: 4,
+      }}
+    >
+      <Typography variant="h1" sx={{ mb: 2 }}>
+        Welcome to VibeConnect
       </Typography>
-      <Typography variant="h6" gutterBottom sx={{ color: '#555' }}>
-        Discover music festivals tailored to your taste.
+      <Typography variant="h3" sx={{ mb: 4 }}>
+        Discover & Connect with Music Lovers
       </Typography>
-      <Box sx={{ mt: 4 }}>
-        <Button
-          variant="contained"
-          color="primary"
-          sx={{ mr: 2, fontWeight: 'bold' }}
-          onClick={() => navigate('/login')}
-        >
-          Log In
-        </Button>
-        <Button
-          variant="outlined"
-          color="primary"
-          sx={{ fontWeight: 'bold' }}
-          onClick={() => navigate('/signup')}
-        >
-          Sign Up
-        </Button>
-      </Box>
-    </Container>
+
+      <Button
+        variant="contained"
+        color="primary"
+        sx={{ fontSize: '1.2rem', px: 4, py: 1.5 }}
+        onClick={() => navigate('/signup')}
+      >
+        Get Started
+      </Button>
+    </Box>
   );
 }
 

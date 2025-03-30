@@ -155,8 +155,12 @@ function FriendsPage() {
 
   return (
     <Container sx={{ mt: 4 }}>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: '#1976d2' }}>
-        Friends
+      <Typography 
+          variant="h4" 
+          gutterBottom 
+          sx={{ fontWeight: 'bold', color: 'text.primary' }}
+          >
+          Find Friend
       </Typography>
       {error && (
         <Typography variant="body1" sx={{ color: 'red', mb: 2 }}>
