@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   TextField,
   Button,
@@ -10,6 +10,7 @@ import {
   CircularProgress,
   Avatar
 } from '@mui/material';
+import { CameraAlt as CameraAltIcon } from '@mui/icons-material';
 import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -17,14 +18,20 @@ import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 
 function ProfilePage() {
+  // ========== SPOTIFY CONFIG ==========
+  // Replace with your actual redirect URI, as registered in Spotify developer dashboard:
+  const SPOTIFY_REDIRECT_URI = 'http://localhost:3000/spotify/callback';
+  const SPOTIFY_CLIENT_ID = '5ef1cdc91da84a8693c3f9c810556d01';
+  const SPOTIFY_SCOPES = [
+    'user-top-read',
+    'playlist-read-private'
+    // add more if needed
+  ];
+  
   // ========== STATE ==========
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
-
-  // Top-level genres user selected
   const [selectedGenres, setSelectedGenres] = useState([]);
-
-  // Subgenres mapped by genre -> array of selected subgenres
   const [selectedSubGenres, setSelectedSubGenres] = useState({
     House: [],
     Techno: [],
@@ -35,19 +42,21 @@ function ProfilePage() {
     Disco: [],
   });
 
-  // Profile picture
-  const [profilePicture, setProfilePicture] = useState(null);
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
-
-  // UI/Loading state
+  const [newProfilePicture, setNewProfilePicture] = useState(null);
+  const [localPreviewUrl, setLocalPreviewUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
 
+  // Spotify tokens/data
+  const [spotifyAccessToken, setSpotifyAccessToken] = useState(null);
+  const [spotifyData, setSpotifyData] = useState(null);
+
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
 
   // ========== GENRES & SUBGENRES DEFINITION ==========
   const genres = ['Techno', 'House', 'DnB', 'Trance', 'Dubstep', 'Hardstyle', 'Disco'];
-
   const subGenres = {
     House: ['Deep House', 'Tropical House', 'Progressive House', 'Electro House'],
     Techno: ['Industrial', 'Deep', 'Melodic', 'Ambient'],
@@ -65,13 +74,12 @@ function ProfilePage() {
       if (!user) return;
 
       try {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {
           const userData = userDoc.data();
           setUsername(userData.username || '');
           setBio(userData.bio || '');
-
-          // If they used plain "genres" or both "genres" & "subGenres"
           setSelectedGenres(userData.genres || []);
           setSelectedSubGenres(
             userData.subGenres || {
@@ -84,8 +92,13 @@ function ProfilePage() {
               Disco: [],
             }
           );
-
           setProfilePictureUrl(userData.profilePicture || '');
+
+          // If we already have a token, store it locally
+          if (userData.spotifyAccessToken) {
+            setSpotifyAccessToken(userData.spotifyAccessToken);
+            fetchSpotifyData(userData.spotifyAccessToken);
+          }
         }
       } catch (err) {
         setError('Failed to fetch user data');
@@ -94,6 +107,79 @@ function ProfilePage() {
 
     fetchUserData();
   }, []);
+
+  // ========== SPOTIFY IMPLICIT GRANT FLOW HANDLER ==========
+  // Listen for token in URL hash if user returned from Spotify
+  useEffect(() => {
+    if (window.location.hash) {
+      // e.g. #access_token=xxx&token_type=Bearer&expires_in=3600
+      const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
+      const accessToken = hashParams.get('access_token');
+      if (accessToken) {
+        console.log('Got Spotify token from redirect:', accessToken);
+        setSpotifyAccessToken(accessToken);
+        saveSpotifyTokenToFirestore(accessToken);
+        fetchSpotifyData(accessToken);
+
+        // Clear the hash from the URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
+
+  // Save the token in Firestore so we know user is "connected"
+  const saveSpotifyTokenToFirestore = async (token) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        spotifyAccessToken: token,
+      });
+    } catch (err) {
+      console.error('Error saving token to Firestore:', err);
+    }
+  };
+
+  // Actually fetch user data from Spotify
+  const fetchSpotifyData = async (token) => {
+    try {
+      // Example: fetch top artists
+      const response = await fetch('https://api.spotify.com/v1/me/top/artists?limit=3', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (data.error) {
+        console.error('Spotify API error:', data.error);
+        return;
+      }
+      console.log('Spotify top artists data:', data);
+
+      // We'll just store name of top 3 artists
+      const topArtists = data.items ? data.items.map((item) => item.name) : [];
+      setSpotifyData({ topArtists });
+    } catch (error) {
+      console.error('Error fetching Spotify data:', error);
+    }
+  };
+
+  // If user not connected, we build an auth URL for the Implicit Grant Flow
+  const handleConnectSpotify = () => {
+    const scopesParam = SPOTIFY_SCOPES.join(' ');
+    const redirectUri = encodeURIComponent(SPOTIFY_REDIRECT_URI);
+
+    // Build the Spotify auth URL
+    const authUrl = `https://accounts.spotify.com/authorize` +
+      `?client_id=${SPOTIFY_CLIENT_ID}` +
+      `&response_type=token` +
+      `&redirect_uri=${redirectUri}` +
+      `&scope=${encodeURIComponent(scopesParam)}` +
+      `&show_dialog=true`;
+
+    // Redirect the browser to Spotify
+    window.location.href = authUrl;
+  };
 
   // ========== HANDLERS ==========
   const handleLogout = async () => {
@@ -105,30 +191,23 @@ function ProfilePage() {
     }
   };
 
-  // Toggle top-level genre
   const handleGenreChange = (genre) => {
     if (selectedGenres.includes(genre)) {
-      // Remove genre
       setSelectedGenres(selectedGenres.filter((g) => g !== genre));
-      // Clear any selected subgenres for this genre
       setSelectedSubGenres((prev) => ({ ...prev, [genre]: [] }));
     } else {
-      // Add genre
       setSelectedGenres([...selectedGenres, genre]);
     }
   };
 
-  // Toggle subgenre within a specific top-level genre
   const handleSubGenreChange = (genre, subgenre) => {
     const current = selectedSubGenres[genre] || [];
     if (current.includes(subgenre)) {
-      // Remove subgenre
       setSelectedSubGenres({
         ...selectedSubGenres,
         [genre]: current.filter((sg) => sg !== subgenre),
       });
     } else {
-      // Add subgenre
       setSelectedSubGenres({
         ...selectedSubGenres,
         [genre]: [...current, subgenre],
@@ -136,14 +215,22 @@ function ProfilePage() {
     }
   };
 
-  // Handle file input
-  const handleFileChange = (e) => {
-    if (e.target.files[0]) {
-      setProfilePicture(e.target.files[0]);
+  const handleAvatarClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
     }
   };
 
-  // Save updated user data, including profile picture
+  const handleFileChange = (e) => {
+    if (e.target.files[0]) {
+      const file = e.target.files[0];
+      setNewProfilePicture(file);
+      const preview = URL.createObjectURL(file);
+      setLocalPreviewUrl(preview);
+    }
+  };
+
+  // ========== SAVE CHANGES (PROFILE) ==========
   const handleSubmit = async (e) => {
     e.preventDefault();
     setUploading(true);
@@ -153,34 +240,36 @@ function ProfilePage() {
       const user = auth.currentUser;
       if (!user) throw new Error('User not logged in');
 
-      let newProfilePictureUrl = profilePictureUrl;
-
-      // If user selected a new image, upload it to Firebase Storage
-      if (profilePicture) {
+      let finalProfileUrl = profilePictureUrl;
+      if (newProfilePicture) {
         const fileRef = ref(storage, `profilePictures/${user.uid}`);
-        await uploadBytes(fileRef, profilePicture);
-        newProfilePictureUrl = await getDownloadURL(fileRef);
-        setProfilePictureUrl(newProfilePictureUrl);
+        await uploadBytes(fileRef, newProfilePicture);
+        finalProfileUrl = await getDownloadURL(fileRef);
       }
 
-      // Update user doc with the new data
       await updateDoc(doc(db, 'users', user.uid), {
         username,
         bio,
         genres: selectedGenres,
         subGenres: selectedSubGenres,
-        profilePicture: newProfilePictureUrl,
+        profilePicture: finalProfileUrl,
       });
 
+      setProfilePictureUrl(finalProfileUrl);
       alert('Profile updated successfully!');
     } catch (err) {
       setError(err.message);
+      console.error(err);
     } finally {
       setUploading(false);
+      setNewProfilePicture(null);
+      setLocalPreviewUrl('');
     }
   };
 
-  // ========== RENDER ==========
+  // Decide which image to show for the Avatar
+  const displayAvatar = localPreviewUrl || profilePictureUrl;
+
   return (
     <Container maxWidth="sm" sx={{ mt: 4 }}>
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: '#1976d2' }}>
@@ -194,15 +283,63 @@ function ProfilePage() {
       )}
 
       <form onSubmit={handleSubmit}>
-        {/* Profile Picture */}
-        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-          <Avatar src={profilePictureUrl} sx={{ width: 100, height: 100 }} />
-        </Box>
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="body1" sx={{ mb: 1 }}>
-            Upload New Profile Picture
-          </Typography>
-          <input type="file" accept="image/*" onChange={handleFileChange} />
+        {/* Hidden file input */}
+        <input
+          type="file"
+          accept="image/*"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          style={{ display: 'none' }}
+        />
+
+        {/* Clickable avatar container */}
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            mb: 2,
+            position: 'relative',
+            cursor: 'pointer',
+            width: 120,
+            height: 120,
+            margin: '0 auto',
+            borderRadius: '50%',
+            '&:hover .overlay': { opacity: 0.4 },
+            '&:hover .icon': { opacity: 1 },
+          }}
+          onClick={handleAvatarClick}
+        >
+          <Avatar src={displayAvatar} sx={{ width: 120, height: 120 }} />
+          {/* Dark overlay on hover */}
+          <Box
+            className="overlay"
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '120px',
+              height: '120px',
+              backgroundColor: '#000',
+              opacity: 0,
+              transition: 'opacity 0.2s ease-in-out',
+              borderRadius: '50%',
+            }}
+          />
+          {/* Camera icon on hover */}
+          <Box
+            className="icon"
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              color: '#fff',
+              opacity: 0,
+              transition: 'opacity 0.2s ease-in-out',
+            }}
+          >
+            <CameraAltIcon />
+          </Box>
         </Box>
 
         {/* Username */}
@@ -230,10 +367,8 @@ function ProfilePage() {
         <Typography variant="h6" sx={{ mt: 2, mb: 2 }}>
           Choose Your Music Taste
         </Typography>
-
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
           {genres.map((genre) => {
-            // Display "D&B" label if genre is "DnB"
             const label = genre === 'DnB' ? 'D&B' : genre;
             return (
               <Box key={genre}>
@@ -246,7 +381,6 @@ function ProfilePage() {
                   }
                   label={<Typography variant="body1">{label}</Typography>}
                 />
-
                 {/* If the user selected this genre, show subgenres */}
                 {selectedGenres.includes(genre) && subGenres[genre] && (
                   <Box sx={{ display: 'flex', flexDirection: 'column', pl: 4, mt: 1 }}>
@@ -273,6 +407,29 @@ function ProfilePage() {
             );
           })}
         </Box>
+
+        {/* Spotify Connect or Data */}
+        {!spotifyAccessToken && (
+          <Box sx={{ mb: 2 }}>
+            <Button variant="contained" color="secondary" onClick={handleConnectSpotify}>
+              Connect to Spotify
+            </Button>
+          </Box>
+        )}
+        {spotifyAccessToken && spotifyData && (
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="h6" sx={{ mt: 2 }}>Your Top Spotify Artists:</Typography>
+            {spotifyData.topArtists?.length ? (
+              <ul>
+                {spotifyData.topArtists.map((artist) => (
+                  <li key={artist}>{artist}</li>
+                ))}
+              </ul>
+            ) : (
+              <Typography variant="body2">No top artist data found.</Typography>
+            )}
+          </Box>
+        )}
 
         {/* Submit Button */}
         <Button

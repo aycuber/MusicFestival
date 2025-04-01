@@ -1,8 +1,10 @@
 // App.js
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
+import { onAuthStateChanged, setPersistence, browserLocalPersistence } from 'firebase/auth';
 
+import { auth } from './firebase'; // <-- Adjust path if needed
 import theme, { MyAppBar } from './theme/theme';
 
 import LandingPage from './pages/LandingPage';
@@ -20,11 +22,34 @@ import AccountSetup from './pages/AccountSetup';
 import FriendProfilePage from './pages/FriendProfilePage';
 
 function App() {
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    // Ensure we always use local persistence so user stays logged in
+    setPersistence(auth, browserLocalPersistence)
+      .then(() => {
+        // Once persistence is set, watch for sign-in state changes
+        const unsubscribe = onAuthStateChanged(auth, () => {
+          // Once we know user or no user, we stop the loader
+          setAuthLoading(false);
+        });
+        return () => unsubscribe();
+      })
+      .catch((err) => {
+        console.error('Failed to set persistence:', err);
+        setAuthLoading(false);
+      });
+  }, []);
+
+  // Optional: Show a loader until Firebase has confirmed the user's sign-in state
+  if (authLoading) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
 
-      {/* Router must wrap both the AppBar and the Routes for navigation to work */}
       <Router>
         <MyAppBar />
 

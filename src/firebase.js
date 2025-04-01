@@ -18,5 +18,8 @@ const firebaseConfig = {
   const googleProvider = new GoogleAuthProvider();
   const db = getFirestore(app); // Firestore instance
   const storage = getStorage(app); // Storage instance
+  // In firebase.js or wherever you define 'storage'
+    console.log('[DEBUG] storage bucket:', storage._bucket?.name);
+
   
   export { auth, googleProvider, signInWithPopup, db, storage };
