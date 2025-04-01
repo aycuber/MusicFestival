@@ -18,17 +18,13 @@ import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 
 function ProfilePage() {
-  // ========== SPOTIFY CONFIG ==========
-  // Replace with your actual redirect URI, as registered in Spotify developer dashboard:
-  const SPOTIFY_REDIRECT_URI = 'http://localhost:3000/spotify/callback';
+  // ---- SPOTIFY CONFIG ----
   const SPOTIFY_CLIENT_ID = '5ef1cdc91da84a8693c3f9c810556d01';
-  const SPOTIFY_SCOPES = [
-    'user-top-read',
-    'playlist-read-private'
-    // add more if needed
-  ];
-  
-  // ========== STATE ==========
+  // Must match the redirect URI you set in Spotify's dashboard
+  const SPOTIFY_REDIRECT_URI = 'http://localhost:3000/profile';
+  const SPOTIFY_SCOPES = ['user-top-read', 'playlist-read-private'];
+
+  // ---- STATE ----
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [selectedGenres, setSelectedGenres] = useState([]);
@@ -42,6 +38,7 @@ function ProfilePage() {
     Disco: [],
   });
 
+  // Profile picture states
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
   const [newProfilePicture, setNewProfilePicture] = useState(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState('');
@@ -50,12 +47,11 @@ function ProfilePage() {
 
   // Spotify tokens/data
   const [spotifyAccessToken, setSpotifyAccessToken] = useState(null);
-  const [spotifyData, setSpotifyData] = useState(null);
 
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
-  // ========== GENRES & SUBGENRES DEFINITION ==========
+  // ---- EDM GENRES DEFINITION ----
   const genres = ['Techno', 'House', 'DnB', 'Trance', 'Dubstep', 'Hardstyle', 'Disco'];
   const subGenres = {
     House: ['Deep House', 'Tropical House', 'Progressive House', 'Electro House'],
@@ -67,15 +63,14 @@ function ProfilePage() {
     Disco: ['Nu-Disco', 'Dance-Punk', 'Eurodisco', 'Italo'],
   };
 
-  // ========== FETCH USER DATA ON LOAD ==========
+  // ---- FETCH USER DATA ON LOAD ----
   useEffect(() => {
     const fetchUserData = async () => {
       const user = auth.currentUser;
       if (!user) return;
 
       try {
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDoc = await getDoc(userDocRef);
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
           const userData = userDoc.data();
           setUsername(userData.username || '');
@@ -94,10 +89,9 @@ function ProfilePage() {
           );
           setProfilePictureUrl(userData.profilePicture || '');
 
-          // If we already have a token, store it locally
           if (userData.spotifyAccessToken) {
             setSpotifyAccessToken(userData.spotifyAccessToken);
-            fetchSpotifyData(userData.spotifyAccessToken);
+            // Optionally fetch Spotify data here if you want
           }
         }
       } catch (err) {
@@ -108,26 +102,24 @@ function ProfilePage() {
     fetchUserData();
   }, []);
 
-  // ========== SPOTIFY IMPLICIT GRANT FLOW HANDLER ==========
-  // Listen for token in URL hash if user returned from Spotify
+  // ---- PARSE TOKEN FROM URL HASH IF WE JUST CAME FROM SPOTIFY ----
   useEffect(() => {
     if (window.location.hash) {
-      // e.g. #access_token=xxx&token_type=Bearer&expires_in=3600
+      // e.g. #access_token=ABC123&token_type=Bearer&expires_in=3600
       const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
-      const accessToken = hashParams.get('access_token');
-      if (accessToken) {
-        console.log('Got Spotify token from redirect:', accessToken);
-        setSpotifyAccessToken(accessToken);
-        saveSpotifyTokenToFirestore(accessToken);
-        fetchSpotifyData(accessToken);
+      const token = hashParams.get('access_token');
+      if (token) {
+        console.log('Got Spotify token from redirect:', token);
+        setSpotifyAccessToken(token);
+        saveSpotifyTokenToFirestore(token);
 
-        // Clear the hash from the URL
+        // Remove the hash from the URL (clean up)
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
   }, []);
 
-  // Save the token in Firestore so we know user is "connected"
+  // ---- SAVE SPOTIFY TOKEN ----
   const saveSpotifyTokenToFirestore = async (token) => {
     const user = auth.currentUser;
     if (!user) return;
@@ -135,53 +127,29 @@ function ProfilePage() {
       await updateDoc(doc(db, 'users', user.uid), {
         spotifyAccessToken: token,
       });
+      console.log('Spotify token stored in Firestore');
     } catch (err) {
       console.error('Error saving token to Firestore:', err);
     }
   };
 
-  // Actually fetch user data from Spotify
-  const fetchSpotifyData = async (token) => {
-    try {
-      // Example: fetch top artists
-      const response = await fetch('https://api.spotify.com/v1/me/top/artists?limit=3', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await response.json();
-      if (data.error) {
-        console.error('Spotify API error:', data.error);
-        return;
-      }
-      console.log('Spotify top artists data:', data);
-
-      // We'll just store name of top 3 artists
-      const topArtists = data.items ? data.items.map((item) => item.name) : [];
-      setSpotifyData({ topArtists });
-    } catch (error) {
-      console.error('Error fetching Spotify data:', error);
-    }
-  };
-
-  // If user not connected, we build an auth URL for the Implicit Grant Flow
+  // ---- CONNECT SPOTIFY (IMPLICIT GRANT FLOW) ----
   const handleConnectSpotify = () => {
-    const scopesParam = SPOTIFY_SCOPES.join(' ');
-    const redirectUri = encodeURIComponent(SPOTIFY_REDIRECT_URI);
+    const scopesParam = encodeURIComponent(SPOTIFY_SCOPES.join(' '));
+    const redirectParam = encodeURIComponent(SPOTIFY_REDIRECT_URI);
 
-    // Build the Spotify auth URL
-    const authUrl = `https://accounts.spotify.com/authorize` +
+    const spotifyAuthUrl = `https://accounts.spotify.com/authorize` +
       `?client_id=${SPOTIFY_CLIENT_ID}` +
       `&response_type=token` +
-      `&redirect_uri=${redirectUri}` +
-      `&scope=${encodeURIComponent(scopesParam)}` +
+      `&redirect_uri=${redirectParam}` +
+      `&scope=${scopesParam}` +
       `&show_dialog=true`;
 
-    // Redirect the browser to Spotify
-    window.location.href = authUrl;
+    // Redirect user to Spotify’s OAuth page
+    window.location.href = spotifyAuthUrl;
   };
 
-  // ========== HANDLERS ==========
+  // ---- LOGOUT ----
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -191,6 +159,7 @@ function ProfilePage() {
     }
   };
 
+  // ---- GENRE/SUBGENRE HANDLERS ----
   const handleGenreChange = (genre) => {
     if (selectedGenres.includes(genre)) {
       setSelectedGenres(selectedGenres.filter((g) => g !== genre));
@@ -215,6 +184,7 @@ function ProfilePage() {
     }
   };
 
+  // ---- AVATAR UPLOAD HANDLERS ----
   const handleAvatarClick = () => {
     if (fileInputRef.current) {
       fileInputRef.current.click();
@@ -225,12 +195,13 @@ function ProfilePage() {
     if (e.target.files[0]) {
       const file = e.target.files[0];
       setNewProfilePicture(file);
+      // local preview
       const preview = URL.createObjectURL(file);
       setLocalPreviewUrl(preview);
     }
   };
 
-  // ========== SAVE CHANGES (PROFILE) ==========
+  // ---- SAVE PROFILE CHANGES ----
   const handleSubmit = async (e) => {
     e.preventDefault();
     setUploading(true);
@@ -267,7 +238,7 @@ function ProfilePage() {
     }
   };
 
-  // Decide which image to show for the Avatar
+  // ---- Decide which image to show for the Avatar
   const displayAvatar = localPreviewUrl || profilePictureUrl;
 
   return (
@@ -292,7 +263,7 @@ function ProfilePage() {
           style={{ display: 'none' }}
         />
 
-        {/* Clickable avatar container */}
+        {/* Avatar */}
         <Box
           sx={{
             display: 'flex',
@@ -310,7 +281,7 @@ function ProfilePage() {
           onClick={handleAvatarClick}
         >
           <Avatar src={displayAvatar} sx={{ width: 120, height: 120 }} />
-          {/* Dark overlay on hover */}
+          {/* Hover overlay */}
           <Box
             className="overlay"
             sx={{
@@ -325,7 +296,7 @@ function ProfilePage() {
               borderRadius: '50%',
             }}
           />
-          {/* Camera icon on hover */}
+          {/* Camera icon */}
           <Box
             className="icon"
             sx={{
@@ -381,7 +352,6 @@ function ProfilePage() {
                   }
                   label={<Typography variant="body1">{label}</Typography>}
                 />
-                {/* If the user selected this genre, show subgenres */}
                 {selectedGenres.includes(genre) && subGenres[genre] && (
                   <Box sx={{ display: 'flex', flexDirection: 'column', pl: 4, mt: 1 }}>
                     {subGenres[genre].map((sub) => (
@@ -408,7 +378,7 @@ function ProfilePage() {
           })}
         </Box>
 
-        {/* Spotify Connect or Data */}
+        {/* If no Spotify token, show Connect button */}
         {!spotifyAccessToken && (
           <Box sx={{ mb: 2 }}>
             <Button variant="contained" color="secondary" onClick={handleConnectSpotify}>
@@ -416,18 +386,13 @@ function ProfilePage() {
             </Button>
           </Box>
         )}
-        {spotifyAccessToken && spotifyData && (
+
+        {/* If needed, show some message that user is connected */}
+        {spotifyAccessToken && (
           <Box sx={{ mb: 2 }}>
-            <Typography variant="h6" sx={{ mt: 2 }}>Your Top Spotify Artists:</Typography>
-            {spotifyData.topArtists?.length ? (
-              <ul>
-                {spotifyData.topArtists.map((artist) => (
-                  <li key={artist}>{artist}</li>
-                ))}
-              </ul>
-            ) : (
-              <Typography variant="body2">No top artist data found.</Typography>
-            )}
+            <Typography variant="body2">
+              Spotify is connected!
+            </Typography>
           </Box>
         )}
 
@@ -444,7 +409,12 @@ function ProfilePage() {
         </Button>
 
         {/* Log Out */}
-        <Button variant="contained" color="primary" onClick={handleLogout} fullWidth>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleLogout}
+          fullWidth
+        >
           Log Out
         </Button>
       </form>

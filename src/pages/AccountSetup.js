@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   TextField,
   Button,
@@ -7,16 +7,16 @@ import {
   Box,
   Checkbox,
   FormControlLabel,
-  CircularProgress
+  CircularProgress,
+  Avatar
 } from '@mui/material';
+import { CameraAlt as CameraAltIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { auth, db, storage } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-/** EDM subgenres (top-level + sub-subgenres optional).
- *  For a simpler initial setup, this example uses a limited list.
- */
+/** Example EDM subgenres. Adjust as needed. */
 const edmGenres = {
   Trance: ['Progressive Trance', 'Vocal Trance', 'Uplifting Trance'],
   House: ['Progressive House', 'Deep House', 'Tech House'],
@@ -30,48 +30,149 @@ const edmGenres = {
 };
 
 function AccountSetup() {
+  // ====== SPOTIFY CONFIG (same approach as ProfilePage) ======
+  const SPOTIFY_CLIENT_ID = '5ef1cdc91da84a8693c3f9c810556d01';
+  // Must match what's in the Spotify Dev Dashboard under "Redirect URIs"
+  const SPOTIFY_REDIRECT_URI = 'http://localhost:3000/account-setup';
+  const SPOTIFY_SCOPES = ['user-top-read', 'playlist-read-private'];
+
+  // ====== STATE ======
+  const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [selectedGenres, setSelectedGenres] = useState([]);
+  const [selectedSubGenres, setSelectedSubGenres] = useState({});
   const [profilePicture, setProfilePicture] = useState(null);
+  const [localPreviewUrl, setLocalPreviewUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
 
-  // Track whether user connected to Spotify/Instagram
-  const [spotifyConnected, setSpotifyConnected] = useState(false);
-  const [instagramConnected, setInstagramConnected] = useState(false);
+  // Spotify
+  const [spotifyAccessToken, setSpotifyAccessToken] = useState(null);
 
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
 
-  // Handle subgenre selection
+  // ====== FETCH USER DATA IF ALREADY EXISTS ======
+  useEffect(() => {
+    const loadUserData = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          // They might be returning to setup again, or partially set up
+          const userData = userDoc.data();
+          setUsername(userData.username || '');
+          setBio(userData.bio || '');
+          setSelectedGenres(userData.genres || []);
+          setSelectedSubGenres(userData.subGenres || {});
+          if (userData.profilePicture) {
+            // We'll just store the existing pic as a starting point
+            setLocalPreviewUrl(userData.profilePicture);
+          }
+          if (userData.spotifyAccessToken) {
+            setSpotifyAccessToken(userData.spotifyAccessToken);
+          }
+        }
+      } catch (err) {
+        setError('Failed to load existing account data');
+      }
+    };
+
+    loadUserData();
+  }, []);
+
+  // ====== PARSE SPOTIFY TOKEN FROM URL (if user came back) ======
+  useEffect(() => {
+    if (window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
+      const token = hashParams.get('access_token');
+      if (token) {
+        console.log('Got Spotify token from redirect in AccountSetup:', token);
+        setSpotifyAccessToken(token);
+        saveSpotifyToken(token);
+
+        // Clean up the hash
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
+
+  // Save token to Firestore
+  const saveSpotifyToken = async (token) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        spotifyAccessToken: token
+      });
+    } catch (err) {
+      console.error('Error saving Spotify token in AccountSetup:', err);
+    }
+  };
+
+  // ====== SPOTIFY CONNECT HANDLER ======
+  const handleConnectSpotify = () => {
+    const scopesParam = encodeURIComponent(SPOTIFY_SCOPES.join(' '));
+    const redirectParam = encodeURIComponent(SPOTIFY_REDIRECT_URI);
+
+    const authUrl = `https://accounts.spotify.com/authorize` +
+      `?client_id=${SPOTIFY_CLIENT_ID}` +
+      `&response_type=token` +
+      `&redirect_uri=${redirectParam}` +
+      `&scope=${scopesParam}` +
+      `&show_dialog=true`;
+
+    window.location.href = authUrl;
+  };
+
+  // ====== GENRE HANDLERS ======
   const handleGenreChange = (genre) => {
     if (selectedGenres.includes(genre)) {
+      // remove
       setSelectedGenres(selectedGenres.filter((g) => g !== genre));
+      setSelectedSubGenres((prev) => ({ ...prev, [genre]: [] }));
     } else {
+      // add
       setSelectedGenres([...selectedGenres, genre]);
     }
   };
 
-  // Handle file input
-  const handleFileChange = (e) => {
-    if (e.target.files[0]) {
-      setProfilePicture(e.target.files[0]);
+  const handleSubGenreChange = (genre, subGenre) => {
+    const current = selectedSubGenres[genre] || [];
+    if (current.includes(subGenre)) {
+      // remove
+      setSelectedSubGenres({
+        ...selectedSubGenres,
+        [genre]: current.filter((sg) => sg !== subGenre)
+      });
+    } else {
+      // add
+      setSelectedSubGenres({
+        ...selectedSubGenres,
+        [genre]: [...current, subGenre]
+      });
     }
   };
 
-  // Simulated "Connect" functions
-  // In a real app, you'd redirect to an OAuth flow, etc.
-  const connectSpotify = () => {
-    // Toggle for demo – real logic would involve OAuth
-    setSpotifyConnected(true);
-    alert('Spotify account connected (demo)!');
+  // ====== FILE INPUT HANDLERS ======
+  const handleAvatarClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
 
-  const connectInstagram = () => {
-    setInstagramConnected(true);
-    alert('Instagram account connected (demo)!');
+  const handleFileChange = (e) => {
+    if (e.target.files[0]) {
+      const file = e.target.files[0];
+      setProfilePicture(file);
+      const preview = URL.createObjectURL(file);
+      setLocalPreviewUrl(preview);
+    }
   };
 
-  // Save all data to Firestore
+  // ====== SUBMIT ACCOUNT SETUP ======
   const handleSubmit = async (e) => {
     e.preventDefault();
     setUploading(true);
@@ -79,33 +180,37 @@ function AccountSetup() {
 
     try {
       const user = auth.currentUser;
-      if (!user) throw new Error('User not logged in');
+      if (!user) throw new Error('No user is logged in');
 
-      // Upload profile picture to Firebase Storage if present
-      let profilePictureUrl = '';
+      // Upload profile picture if needed
+      let finalPictureUrl = localPreviewUrl; // fallback if no new pic
       if (profilePicture) {
         const fileRef = ref(storage, `profilePictures/${user.uid}`);
         await uploadBytes(fileRef, profilePicture);
-        profilePictureUrl = await getDownloadURL(fileRef);
+        finalPictureUrl = await getDownloadURL(fileRef);
       }
 
-      // Save user data to Firestore
+      // Save/Update Firestore
       await setDoc(doc(db, 'users', user.uid), {
+        username,
         bio,
         genres: selectedGenres,
-        profilePicture: profilePictureUrl,
-        spotifyConnected,
-        instagramConnected
-      });
+        subGenres: selectedSubGenres,
+        profilePicture: finalPictureUrl,
+        spotifyAccessToken // if the user connected Spotify
+      }, { merge: true });
 
-      navigate('/home'); // Redirect to home page after setup
+      // Go to home
+      navigate('/home');
     } catch (err) {
       setError(err.message);
+      console.error('AccountSetup error:', err);
     } finally {
       setUploading(false);
     }
   };
 
+  // ========== RENDER ==========
   return (
     <Container maxWidth="sm" sx={{ mt: 10 }}>
       <Typography variant="h4" gutterBottom color="primary" sx={{ fontWeight: 'bold' }}>
@@ -119,11 +224,31 @@ function AccountSetup() {
       )}
 
       <form onSubmit={handleSubmit}>
+        {/* USERNAME */}
+        <TextField
+          fullWidth
+          label="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          sx={{ mb: 2 }}
+          required
+        />
+
+        {/* BIO */}
+        <TextField
+          fullWidth
+          label="Bio"
+          multiline
+          rows={4}
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
+          sx={{ mb: 2 }}
+        />
+
+        {/* GENRES & SUBGENRES */}
         <Typography variant="h6" sx={{ mt: 2, mb: 2 }}>
           Choose Your EDM Subgenres
         </Typography>
-
-        {/* Render top-level EDM subgenres + sub-subgenres */}
         {Object.keys(edmGenres).map((mainGenre) => (
           <Box key={mainGenre} sx={{ mb: 1 }}>
             <FormControlLabel
@@ -135,55 +260,102 @@ function AccountSetup() {
               }
               label={mainGenre}
             />
-            {/* Show sub-subgenres underneath */}
             <Box sx={{ pl: 4 }}>
-              {edmGenres[mainGenre].map((subGenre) => (
+              {edmGenres[mainGenre].map((sub) => (
                 <FormControlLabel
-                  key={subGenre}
+                  key={sub}
                   control={
                     <Checkbox
-                      checked={selectedGenres.includes(subGenre)}
-                      onChange={() => handleGenreChange(subGenre)}
+                      size="small"
+                      checked={
+                        selectedSubGenres[mainGenre]?.includes(sub) || false
+                      }
+                      onChange={() => handleSubGenreChange(mainGenre, sub)}
                     />
                   }
-                  label={subGenre}
+                  label={sub}
                 />
               ))}
             </Box>
           </Box>
         ))}
 
-        <TextField
-          fullWidth
-          label="Bio"
-          multiline
-          rows={4}
-          value={bio}
-          onChange={(e) => setBio(e.target.value)}
-          sx={{ mb: 2 }}
-        />
+        {/* PROFILE PICTURE */}
+        <Typography variant="h6" sx={{ mt: 2 }}>
+          Profile Picture
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          {/* Hidden file input */}
+          <input
+            type="file"
+            accept="image/*"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+          />
 
-        {/* Profile Picture */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="body1" sx={{ mb: 1 }}>
-            Upload Profile Picture
-          </Typography>
-          <input type="file" accept="image/*" onChange={handleFileChange} />
+          {/* Avatar preview */}
+          <Box
+            sx={{
+              position: 'relative',
+              width: 80,
+              height: 80,
+              borderRadius: '50%',
+              overflow: 'hidden',
+              cursor: 'pointer',
+              '&:hover .overlay': { opacity: 0.3 },
+            }}
+            onClick={handleAvatarClick}
+          >
+            <Avatar
+              src={localPreviewUrl}
+              sx={{ width: 80, height: 80 }}
+            />
+            <Box
+              className="overlay"
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '80px',
+                height: '80px',
+                backgroundColor: '#000',
+                opacity: 0,
+                transition: 'opacity 0.2s ease-in-out'
+              }}
+            />
+            <Box
+              sx={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                color: '#fff'
+              }}
+            >
+              <CameraAltIcon />
+            </Box>
+          </Box>
         </Box>
 
-        {/* Connect Buttons (demo placeholders) */}
-        <Box sx={{ mb: 2 }}>
-          {!spotifyConnected && (
-            <Button variant="contained" color="secondary" onClick={connectSpotify} sx={{ mr: 2 }}>
+        {/* SPOTIFY CONNECT */}
+        {!spotifyAccessToken && (
+          <Box sx={{ mb: 3 }}>
+            <Button
+              variant="contained"
+              color="secondary"
+              onClick={handleConnectSpotify}
+              sx={{ mr: 2 }}
+            >
               Connect Spotify
             </Button>
-          )}
-          {!instagramConnected && (
-            <Button variant="contained" color="secondary" onClick={connectInstagram}>
-              Connect Instagram
-            </Button>
-          )}
-        </Box>
+          </Box>
+        )}
+        {spotifyAccessToken && (
+          <Typography variant="body2" sx={{ color: 'green', mb: 2 }}>
+            Spotify connected!
+          </Typography>
+        )}
 
         <Button
           type="submit"
