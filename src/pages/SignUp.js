@@ -1,21 +1,44 @@
 import React, { useState } from 'react';
-import { Box, TextField, Button, Typography } from '@mui/material';
+import {
+  Box,
+  TextField,
+  Button,
+  Typography,
+  Container,
+  CircularProgress
+} from '@mui/material';
 import { auth, db } from '../firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 
 function SignUp() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  
   const navigate = useNavigate();
 
   const handleSignUp = async () => {
+    setError('');
+    setLoading(true);
+
     try {
+      // 1) Check if username is already taken
+      const q = query(collection(db, 'users'), where('username', '==', username));
+      const qSnap = await getDocs(q);
+
+      if (!qSnap.empty) {
+        throw new Error('Username already taken. Please choose another.');
+      }
+
+      // 2) Create user with email/password
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
+      // 3) Create the user doc in Firestore
       await setDoc(doc(db, 'users', user.uid), {
         username,
         email,
@@ -25,31 +48,43 @@ function SignUp() {
       });
 
       navigate('/home');
-    } catch (error) {
-      console.error('Error signing up:', error);
+    } catch (err) {
+      setError(err.message);
+      console.error('Error signing up:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <Box
+    <Container
+      maxWidth="sm"
       sx={{
         minHeight: '100vh',
-        backgroundColor: 'background.default',
-        color: 'text.primary',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        px: 4,
+        py: 4,
       }}
     >
-      <Typography variant="h1" sx={{ mb: 3 }}>
+      <Typography
+        variant="h4"
+        gutterBottom
+        sx={{ fontWeight: 'bold', color: 'primary.main', mb: 3 }}
+      >
         Create Your Account
       </Typography>
 
+      {error && (
+        <Typography variant="body1" color="error" sx={{ mb: 2 }}>
+          {error}
+        </Typography>
+      )}
+
       <TextField
         label="Username"
-        variant="filled"
+        variant="outlined"
         fullWidth
         sx={{ mb: 2 }}
         onChange={(e) => setUsername(e.target.value)}
@@ -57,7 +92,8 @@ function SignUp() {
 
       <TextField
         label="Email"
-        variant="filled"
+        type="email"
+        variant="outlined"
         fullWidth
         sx={{ mb: 2 }}
         onChange={(e) => setEmail(e.target.value)}
@@ -66,7 +102,7 @@ function SignUp() {
       <TextField
         label="Password"
         type="password"
-        variant="filled"
+        variant="outlined"
         fullWidth
         sx={{ mb: 2 }}
         onChange={(e) => setPassword(e.target.value)}
@@ -75,12 +111,14 @@ function SignUp() {
       <Button
         variant="contained"
         color="primary"
-        sx={{ mt: 2, fontSize: '1.2rem', px: 4, py: 1.5 }}
+        fullWidth
+        sx={{ fontWeight: 'bold', py: 1.5 }}
         onClick={handleSignUp}
+        disabled={loading}
       >
-        Sign Up
+        {loading ? <CircularProgress size={24} /> : 'Sign Up'}
       </Button>
-    </Box>
+    </Container>
   );
 }
 

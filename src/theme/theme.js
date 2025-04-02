@@ -1,6 +1,6 @@
 // theme.js
 import React from 'react';
-import { createTheme } from '@mui/material/styles';
+import { createTheme, responsiveFontSizes } from '@mui/material/styles';
 import {
   AppBar,
   Toolbar,
@@ -15,7 +15,7 @@ import { AccountCircle, Mail, Home } from '@mui/icons-material';
 /**
  * 1) Define your MUI theme
  */
-const theme = createTheme({
+let theme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
@@ -52,6 +52,8 @@ const theme = createTheme({
         root: {
           // Add a subtle gradient effect to the AppBar
           background: 'linear-gradient(90deg, #9c27b0 0%, #e91e63 100%)',
+          // Let content wrap if it's too narrow on mobile
+          flexWrap: 'wrap',
         },
       },
     },
@@ -66,6 +68,9 @@ const theme = createTheme({
   },
 });
 
+// Make typography respond to screen size
+theme = responsiveFontSizes(theme);
+
 /**
  * 2) Create a reusable top bar component
  *    that will be rendered on every page.
@@ -73,49 +78,64 @@ const theme = createTheme({
 export const MyAppBar = () => {
   return (
     <AppBar position="static">
-      <Toolbar>
+      <Toolbar sx={{ flexWrap: 'wrap' }}>
         {/* Logo/Home Icon => navigates to "/home" */}
         <IconButton
           color="inherit"
           component={Link}
           to="/home"
+          sx={{ mr: 1 }}
         >
           <Home />
         </IconButton>
 
         {/* YourTune brand text */}
-        <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
+        <Typography
+          variant="h6"
+          sx={{
+            flexGrow: 1,
+            fontWeight: 'bold',
+            // On very small screens, reduce font size a bit
+            fontSize: { xs: '1rem', sm: '1.25rem' },
+          }}
+        >
           YourTune
         </Typography>
 
-        {/* Navigation Buttons */}
-        <Button color="inherit" component={Link} to="/explore">
-          Explore
-        </Button>
-        <Button color="inherit" component={Link} to="/search">
-          Search
-        </Button>
-        <Button color="inherit" component={Link} to="/friends">
-          Friends
-        </Button>
+        {/* Desktop/Tablet Nav Buttons
+            Let them wrap if there's no space
+          */}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
+          <Button color="inherit" component={Link} to="/explore" sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}>
+            Explore
+          </Button>
+          <Button color="inherit" component={Link} to="/search" sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}>
+            Search
+          </Button>
+          <Button color="inherit" component={Link} to="/friends" sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}>
+            Friends
+          </Button>
 
-        {/* Message Icon => navigates to "/messaging" */}
-        <IconButton
-          color="inherit"
-          component={Link}
-          to="/messaging"
-        >
-          <Mail />
-        </IconButton>
+          {/* Message Icon => navigates to "/messaging" */}
+          <IconButton
+            color="inherit"
+            component={Link}
+            to="/messaging"
+            sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}
+          >
+            <Mail />
+          </IconButton>
 
-        {/* Profile Icon => navigates to "/profile" */}
-        <IconButton
-          color="inherit"
-          component={Link}
-          to="/profile"
-        >
-          <AccountCircle />
-        </IconButton>
+          {/* Profile Icon => navigates to "/profile" */}
+          <IconButton
+            color="inherit"
+            component={Link}
+            to="/profile"
+            sx={{ mt: { xs: 1, sm: 0 } }}
+          >
+            <AccountCircle />
+          </IconButton>
+        </Box>
       </Toolbar>
     </AppBar>
   );
