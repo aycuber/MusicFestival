@@ -20,7 +20,7 @@ function LandingPage() {
       }}
     >
       <Typography variant="h1" sx={{ mb: 2 }}>
-        Welcome to VibeConnect
+        Welcome to YourTune
       </Typography>
       <Typography variant="h3" sx={{ mb: 4 }}>
         Discover & Connect with Music Lovers
