@@ -58,6 +58,7 @@ function SignUp() {
         bio: '',
         profilePicture: '',
       });
+/** add functionality if the user with certain email already exists in firestore */
 
       navigate('/home');
     } catch (err) {
@@ -65,6 +66,42 @@ function SignUp() {
       console.error('Error signing up:', err);
     } finally {
       setLoading(false);
+<<<<<<< HEAD
+    }
+  };
+
+  // ----- Sign Up with Google -----
+  const handleGoogleSignUp = async () => {
+    setError('');
+    setLoading(true);
+
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+
+      // Check if user doc already exists
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+
+      // If not, create a new doc
+      if (!userDocSnap.exists()) {
+        await setDoc(userDocRef, {
+          username: user.displayName || '', // or generate a placeholder
+          email: user.email,
+          friends: [],
+          bio: '',
+          profilePicture: user.photoURL || '',
+        });
+      }
+
+      navigate('/home');
+    } catch (err) {
+      setError(err.message);
+      console.error('Google Sign Up error:', err);
+    } finally {
+      setLoading(false);
+=======
+>>>>>>> a8900e0ff721ff37d09a6756cd4cf7dd787c277a
     }
   };
 
@@ -100,7 +137,7 @@ function SignUp() {
       setLoading(false);
     }
   };
-
+/**Creates the component that contains smaller components for the create your account */
   return (
     <Container
       maxWidth="sm"
@@ -167,6 +204,7 @@ function SignUp() {
         sx={{ fontWeight: 'bold', py: 1.5, mb: 2 }}
         onClick={handleSignUp}
         disabled={loading}
+<<<<<<< HEAD
       >
         {loading ? <CircularProgress size={24} /> : 'Sign Up'}
       </Button>
@@ -183,6 +221,24 @@ function SignUp() {
         {loading ? <CircularProgress size={24} /> : 'Sign Up with Google'}
       </Button>
 
+=======
+      >
+        {loading ? <CircularProgress size={24} /> : 'Sign Up'}
+      </Button>
+
+      {/* Sign Up with Google */}
+      <Button
+        variant="outlined"
+        color="primary"
+        fullWidth
+        sx={{ fontWeight: 'bold', py: 1.5, mb: 2 }}
+        onClick={handleGoogleSignUp}
+        disabled={loading}
+      >
+        {loading ? <CircularProgress size={24} /> : 'Sign Up with Google'}
+      </Button>
+
+>>>>>>> a8900e0ff721ff37d09a6756cd4cf7dd787c277a
       {/* Redirect to Login */}
       <Typography variant="body2" sx={{ mt: 2 }}>
         Already have an account?{' '}
@@ -199,4 +255,4 @@ function SignUp() {
   );
 }
 
-export default SignUp;
+export default SignUp; /** So that the variables, functions, classes, or components can be used in other files */

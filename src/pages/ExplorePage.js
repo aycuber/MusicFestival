@@ -12,12 +12,15 @@ function ExplorePage() {
 
   const TICKETMASTER_API_KEY = 'Pzo8cbC1U1UGBhAYIlUVGt2L0N4mo5oN';
 
-  // ✅ Fetch user data on component mount
+  // Fetch user data on component mount or set default genre if not signed in
   useEffect(() => {
     const fetchUserData = async () => {
       const user = auth.currentUser;
-      if (!user) return;
-
+      if (!user) {
+        // Not signed in: use a default keyword (e.g., "EDM")
+        setSelectedGenres(['EDM']);
+        return;
+      }
       try {
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
@@ -33,26 +36,23 @@ function ExplorePage() {
     fetchUserData();
   }, []);
 
-  // ✅ Fetch events from Ticketmaster using genres as keywords
+  // Fetch events from Ticketmaster using genres as keywords
   useEffect(() => {
     if (selectedGenres.length === 0) return;
 
     const fetchFestivals = async () => {
       setLoading(true);
-
       try {
         const keywords = selectedGenres[0];
-        console.log('Using Keywords:', keywords); // ✅ Should reflect genres
-
+        console.log('Using Keywords:', keywords);
         const response = await axios.get('https://app.ticketmaster.com/discovery/v2/events.json', {
           params: {
             apikey: TICKETMASTER_API_KEY,
             classificationName: 'music',
-            keyword: keywords, // ✅ Feeds genres directly into keyword
+            keyword: keywords,
             size: 20,
           },
         });
-
         console.log('Event Response:', response.data);
 
         const events = response.data._embedded?.events || [];
@@ -86,13 +86,13 @@ function ExplorePage() {
 
   return (
     <Container sx={{ mt: 4 }}>
-        <Typography 
-            variant="h4" 
-            gutterBottom 
-            sx={{ fontWeight: 'bold', color: 'text.primary' }}
-            >
-            Explore Festivals
-        </Typography>
+      <Typography 
+        variant="h4" 
+        gutterBottom 
+        sx={{ fontWeight: 'bold', color: 'text.primary' }}
+      >
+        Explore Festivals
+      </Typography>
 
       <Grid container spacing={3}>
         {festivals.map((festival) => (

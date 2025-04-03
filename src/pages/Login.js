@@ -32,7 +32,7 @@ function Login() {
         setError('User data not found');
       }
     } catch (err) {
-      setError(err.message);
+      setError("Error - Invalid auth/credential"); //Changed the invalide login
     } finally {
       setLoading(false);
     }
