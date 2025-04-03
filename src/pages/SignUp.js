@@ -9,7 +9,7 @@ function SignUp() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
-  const navigate = useNavigate();
+  const navigate = useNavigate(); //just sets variable navigate to the useNavigate() alias (used on line 28)
 
   const handleSignUp = async () => {
     try {
@@ -23,15 +23,16 @@ function SignUp() {
         bio: '',
         profilePicture: '',
       });
+/** add functionality if the user with certain email already exists in firestore */
 
-      navigate('/home');
+      navigate('/home'); //navigate the user to homepage once the account is set up
     } catch (error) {
       console.error('Error signing up:', error);
     }
   };
-
+/**Creates the component that contains smaller components for the create your account */
   return (
-    <Box
+    <Box 
       sx={{
         minHeight: '100vh',
         backgroundColor: 'background.default',
@@ -84,4 +85,4 @@ function SignUp() {
   );
 }
 
-export default SignUp;
+export default SignUp; /** So that the variables, functions, classes, or components can be used in other files */

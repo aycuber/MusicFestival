@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { TextField, Button, Container, Typography, Box, List, ListItem, ListItemText, Avatar, CircularProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase';
-import { collection, query, where, getDocs, doc, setDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 
 function FriendsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
+  const [sentFriendRequests, setSentFriendRequests] = useState([]);
   const [friends, setFriends] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -23,7 +24,8 @@ function FriendsPage() {
           // Fetch friend requests
           const friendRequestsQuery = query(
             collection(db, 'friendRequests'),
-            where('to', '==', user.uid)
+            where('to', '==', user.uid),
+            where('status', '==', 'pending')
           );
           const friendRequestsSnapshot = await getDocs(friendRequestsQuery);
           const requests = await Promise.all(
@@ -32,26 +34,38 @@ function FriendsPage() {
               const fromUserDoc = await getDocs(doc(db, 'users', requestData.from));
               const fromUserData = fromUserDoc.data();
               return {
-                id: doc.id,
+                id: docSnap.id,
                 from: requestData.from,
-                fromUsername: fromUserData.username, // Fetch the username
-                status: requestData.status,
+                fromUsername: fromUserData.username || 'Unknown User', // Fallback if missing
+                profilePicture: fromUserData.profilePicture || '',
+                status : requestData.status,
               };
             })
           );
           setFriendRequests(requests);
       
-          // Fetch friends
+          // Fetch friends sent (OUTGOING requests)
           const friendsQuery = query(
             collection(db, 'friends'),
-            where('users', 'array-contains', user.uid)
+            where ('from', '==', user.uid),
+            where('status', '==', 'pending')
           );
-          const friendsSnapshot = await getDocs(friendsQuery);
-          const friendsList = friendsSnapshot.docs.map((doc) => {
-            const friendId = doc.data().users.find((uid) => uid !== user.uid);
-            return friendId;
-          });
-          setFriends(friendsList);
+
+          const sentfriendsSnapshot = await getDocs(sentfriendsQuery);
+          const sentRequests = await Promise.all(
+            friendsSnapshot.docs.map(async (docSnap) => {
+              const requestData = docSnap.data();
+              const toUserDoc = await getDoc(doc(db, 'users', requestData.to));
+              const toUserData = toUserDoc.exists() ? toUserDoc.data() : {};
+              return {
+                id: docSnap.id,
+                to: requestData.to,
+                username: friendData.username || 'Unknown User',
+                profilePicture : toUserData.profilePicture || '',
+              };
+            })
+          );
+          setFriends(friendDetails);
         } catch (err) {
           setError('Failed to fetch friend data');
           console.error(err); // Log the error for debugging
@@ -160,13 +174,14 @@ function FriendsPage() {
           gutterBottom 
           sx={{ fontWeight: 'bold', color: 'text.primary' }}
           >
-          Find Friend
+          Find Friends
       </Typography>
       {error && (
         <Typography variant="body1" sx={{ color: 'red', mb: 2 }}>
           {error}
         </Typography>
       )}
+      {/* Search Users */}
       <Box sx={{ mb: 4 }}>
         <TextField
           fullWidth
@@ -204,10 +219,13 @@ function FriendsPage() {
         ))}
       </List>
       <Typography variant="h6" gutterBottom>
-        Friend Requests
+        Friend Requests (recieved)
       </Typography>
       <List>
-        {friendRequests.map((request) => (
+        {friendRequests.length == 0 ? (
+          <Typography>No incoming friend requests.</Typography>
+        ) : (
+        friendRequests.map((request) => (
           <ListItem key={request.id}>
             <Avatar src={request.profilePicture} sx={{ mr: 2 }} />
             <ListItemText primary={`Request from ${request.fromUsername}`} />
@@ -220,25 +238,29 @@ function FriendsPage() {
               Accept
             </Button>
           </ListItem>
-        ))}
+        ))
+        )}
       </List>
       <Typography variant="h6" gutterBottom>
-        Your Friends
+        Friend Requests (Sent)
       </Typography>
       <List>
-        {friends.map((friendId) => (
-          <ListItem key={friendId}>
-            <Avatar src={friendId.profilePicture} sx={{ mr: 2 }} />
-            <ListItemText primary={friendId.username} />
+        {sentFriendRequests.length == 0 ? (
+          <Typography>No outgoing friend requests.</Typography>
+        ) : (
+          sentFriendRequests.map((request) => (
+          <ListItem key={request.id}>
+            <Avatar src={request.profilePicture} sx={{ mr: 2 }} />
+            <ListItemText primary={request.username} />
             <Button
               variant="contained"
               color="primary"
-              onClick={() => navigate(`/messages/${friendId}`)}
+              onClick={() => navigate(`/messages/${request.id}`)}
             >
               Message
             </Button>
           </ListItem>
-        ))}
+        )))}
       </List>
     </Container>
   );
