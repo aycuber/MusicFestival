@@ -51,7 +51,8 @@ function App() {
       <CssBaseline />
 
       <Router>
-        <MyAppBar />
+        {/* Conditionally hide top bar if route = /account-setup */}
+        {window.location.pathname !== '/account-setup' && <MyAppBar />}
 
         <Routes>
           <Route path="/" element={<LandingPage />} />

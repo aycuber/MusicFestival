@@ -13,10 +13,18 @@ import {
 import { CameraAlt as CameraAltIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { auth, db, storage } from '../firebase';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import {
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  collection,
+  query,
+  where,
+  getDocs
+} from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-/** Example EDM subgenres. Adjust as needed. */
 const edmGenres = {
   Trance: ['Progressive Trance', 'Vocal Trance', 'Uplifting Trance'],
   House: ['Progressive House', 'Deep House', 'Tech House'],
@@ -30,13 +38,12 @@ const edmGenres = {
 };
 
 function AccountSetup() {
-  // ====== SPOTIFY CONFIG (same approach as ProfilePage) ======
+  // Spotify config
   const SPOTIFY_CLIENT_ID = '5ef1cdc91da84a8693c3f9c810556d01';
-  // Must match what's in the Spotify Dev Dashboard under "Redirect URIs"
   const SPOTIFY_REDIRECT_URI = 'http://localhost:3000/account-setup';
   const SPOTIFY_SCOPES = ['user-top-read', 'playlist-read-private'];
 
-  // ====== STATE ======
+  // STATE
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [selectedGenres, setSelectedGenres] = useState([]);
@@ -45,14 +52,12 @@ function AccountSetup() {
   const [localPreviewUrl, setLocalPreviewUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
-
-  // Spotify
   const [spotifyAccessToken, setSpotifyAccessToken] = useState(null);
 
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
-  // ====== FETCH USER DATA IF ALREADY EXISTS ======
+  // ========== Load existing user data (username, subgenres, etc.) ==========
   useEffect(() => {
     const loadUserData = async () => {
       const user = auth.currentUser;
@@ -61,14 +66,12 @@ function AccountSetup() {
       try {
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
-          // They might be returning to setup again, or partially set up
           const userData = userDoc.data();
           setUsername(userData.username || '');
           setBio(userData.bio || '');
           setSelectedGenres(userData.genres || []);
           setSelectedSubGenres(userData.subGenres || {});
           if (userData.profilePicture) {
-            // We'll just store the existing pic as a starting point
             setLocalPreviewUrl(userData.profilePicture);
           }
           if (userData.spotifyAccessToken) {
@@ -83,23 +86,21 @@ function AccountSetup() {
     loadUserData();
   }, []);
 
-  // ====== PARSE SPOTIFY TOKEN FROM URL (if user came back) ======
+  // ========== Parse Spotify token from URL ==========
   useEffect(() => {
     if (window.location.hash) {
       const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
       const token = hashParams.get('access_token');
       if (token) {
-        console.log('Got Spotify token from redirect in AccountSetup:', token);
         setSpotifyAccessToken(token);
         saveSpotifyToken(token);
-
-        // Clean up the hash
+        // Clean up hash
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
   }, []);
 
-  // Save token to Firestore
+  // ========== Save Spotify Token to Firestore ==========
   const saveSpotifyToken = async (token) => {
     const user = auth.currentUser;
     if (!user) return;
@@ -112,7 +113,7 @@ function AccountSetup() {
     }
   };
 
-  // ====== SPOTIFY CONNECT HANDLER ======
+  // ========== Spotify Connect ==========
   const handleConnectSpotify = () => {
     const scopesParam = encodeURIComponent(SPOTIFY_SCOPES.join(' '));
     const redirectParam = encodeURIComponent(SPOTIFY_REDIRECT_URI);
@@ -127,14 +128,12 @@ function AccountSetup() {
     window.location.href = authUrl;
   };
 
-  // ====== GENRE HANDLERS ======
+  // ========== Genre Handlers ==========
   const handleGenreChange = (genre) => {
     if (selectedGenres.includes(genre)) {
-      // remove
       setSelectedGenres(selectedGenres.filter((g) => g !== genre));
       setSelectedSubGenres((prev) => ({ ...prev, [genre]: [] }));
     } else {
-      // add
       setSelectedGenres([...selectedGenres, genre]);
     }
   };
@@ -142,13 +141,11 @@ function AccountSetup() {
   const handleSubGenreChange = (genre, subGenre) => {
     const current = selectedSubGenres[genre] || [];
     if (current.includes(subGenre)) {
-      // remove
       setSelectedSubGenres({
         ...selectedSubGenres,
         [genre]: current.filter((sg) => sg !== subGenre)
       });
     } else {
-      // add
       setSelectedSubGenres({
         ...selectedSubGenres,
         [genre]: [...current, subGenre]
@@ -156,7 +153,7 @@ function AccountSetup() {
     }
   };
 
-  // ====== FILE INPUT HANDLERS ======
+  // ========== Avatar / File Input ==========
   const handleAvatarClick = () => {
     if (fileInputRef.current) {
       fileInputRef.current.click();
@@ -167,12 +164,11 @@ function AccountSetup() {
     if (e.target.files[0]) {
       const file = e.target.files[0];
       setProfilePicture(file);
-      const preview = URL.createObjectURL(file);
-      setLocalPreviewUrl(preview);
+      setLocalPreviewUrl(URL.createObjectURL(file));
     }
   };
 
-  // ====== SUBMIT ACCOUNT SETUP ======
+  // ========== Submit / Save Account Setup ==========
   const handleSubmit = async (e) => {
     e.preventDefault();
     setUploading(true);
@@ -182,23 +178,42 @@ function AccountSetup() {
       const user = auth.currentUser;
       if (!user) throw new Error('No user is logged in');
 
-      // Upload profile picture if needed
-      let finalPictureUrl = localPreviewUrl; // fallback if no new pic
+      // --- Username Uniqueness Check ---
+      // We'll check if *any* other user doc has the same username (besides current user's doc).
+      const q = query(collection(db, 'users'), where('username', '==', username));
+      const querySnap = await getDocs(q);
+
+      // If there's a doc, and it's not this user, that's a problem
+      if (!querySnap.empty) {
+        // The user might see themselves if they've saved a username already.
+        // So let's see if there's a doc that doesn't match the current user ID:
+        const conflict = querySnap.docs.find((docu) => docu.id !== user.uid);
+        if (conflict) {
+          throw new Error('Username already taken. Please choose another.');
+        }
+      }
+
+      // --- Upload new profile picture if needed ---
+      let finalPictureUrl = localPreviewUrl;
       if (profilePicture) {
         const fileRef = ref(storage, `profilePictures/${user.uid}`);
         await uploadBytes(fileRef, profilePicture);
         finalPictureUrl = await getDownloadURL(fileRef);
       }
 
-      // Save/Update Firestore
-      await setDoc(doc(db, 'users', user.uid), {
-        username,
-        bio,
-        genres: selectedGenres,
-        subGenres: selectedSubGenres,
-        profilePicture: finalPictureUrl,
-        spotifyAccessToken // if the user connected Spotify
-      }, { merge: true });
+      // --- Save/Update Firestore ---
+      await setDoc(
+        doc(db, 'users', user.uid),
+        {
+          username,
+          bio,
+          genres: selectedGenres,
+          subGenres: selectedSubGenres,
+          profilePicture: finalPictureUrl,
+          spotifyAccessToken
+        },
+        { merge: true }
+      );
 
       // Go to home
       navigate('/home');
