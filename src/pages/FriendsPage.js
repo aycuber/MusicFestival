@@ -2,13 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { TextField, Button, Container, Typography, Box, List, ListItem, ListItemText, Avatar, CircularProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase';
-import { collection, query, where, getDocs, doc, setDoc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
 
 function FriendsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
-  const [sentFriendRequests, setSentFriendRequests] = useState([]);
   const [friends, setFriends] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -19,9 +18,8 @@ function FriendsPage() {
     const fetchFriendData = async () => {
         const user = auth.currentUser;
         if (!user) return;
-      
         try {
-          // Fetch friend requests
+          // Fetch incoming friend requests (received)
           const friendRequestsQuery = query(
             collection(db, 'friendRequests'),
             where('to', '==', user.uid),
@@ -29,16 +27,15 @@ function FriendsPage() {
           );
           const friendRequestsSnapshot = await getDocs(friendRequestsQuery);
           const requests = await Promise.all(
-            friendRequestsSnapshot.docs.map(async (doc) => {
-              const requestData = doc.data();
-              const fromUserDoc = await getDocs(doc(db, 'users', requestData.from));
-              const fromUserData = fromUserDoc.data();
+            friendRequestsSnapshot.docs.map(async (docSnap) => {
+              const requestData = docSnap.data();
+              const fromUserDoc = await getDoc(doc(db, 'users', requestData.from));
+              const fromUserData = fromUserDoc.exists() ? fromUserDoc.data() : {};
               return {
                 id: docSnap.id,
                 from: requestData.from,
-                fromUsername: fromUserData.username || 'Unknown User', // Fallback if missing
-                profilePicture: fromUserData.profilePicture || '',
-                status : requestData.status,
+                fromUsername: fromUserData.username, // Fetch the username
+                status: requestData.status,
               };
             })
           );
@@ -50,22 +47,12 @@ function FriendsPage() {
             where ('from', '==', user.uid),
             where('status', '==', 'pending')
           );
-
-          const sentfriendsSnapshot = await getDocs(sentfriendsQuery);
-          const sentRequests = await Promise.all(
-            friendsSnapshot.docs.map(async (docSnap) => {
-              const requestData = docSnap.data();
-              const toUserDoc = await getDoc(doc(db, 'users', requestData.to));
-              const toUserData = toUserDoc.exists() ? toUserDoc.data() : {};
-              return {
-                id: docSnap.id,
-                to: requestData.to,
-                username: friendData.username || 'Unknown User',
-                profilePicture : toUserData.profilePicture || '',
-              };
-            })
-          );
-          setFriends(friendDetails);
+          const friendsSnapshot = await getDocs(friendsQuery);
+          const friendsList = friendsSnapshot.docs.map((doc) => {
+            const friendId = doc.data().users.find((uid) => uid !== user.uid);
+            return friendId;
+          });
+          setFriends(friendsList);
         } catch (err) {
           setError('Failed to fetch friend data');
           console.error(err); // Log the error for debugging
@@ -94,7 +81,7 @@ function FriendsPage() {
         return;
       }
 
-      const results = usersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const results = usersSnapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
       setSearchResults(results);
     } catch (err) {
       setError(err.message);
@@ -121,16 +108,14 @@ function FriendsPage() {
       );
       const existingRequestSnapshot = await getDocs(existingRequestQuery);
 
-      if (!existingRequestSnapshot.empty) {
-        throw new Error('Friend request already sent');
-      }
-
       // Create a new friend request
       await setDoc(doc(db, 'friendRequests', `${user.uid}_${toUserId}`), {
         from: user.uid,
         to: toUserId,
         status: 'pending',
       });
+      //create a new set for sent requests and update state
+      setSentRequests((prevSentRequests) => new Set(prevSentRequests).add(toUserId));
 
       alert('Friend request sent!');
     } catch (err) {
@@ -149,15 +134,18 @@ function FriendsPage() {
       const user = auth.currentUser;
       if (!user) throw new Error('User not logged in');
 
-      // Add friend relationship
+      // Get the friend request data
       const requestDoc = doc(db, 'friendRequests', requestId);
-      const requestData = (await getDocs(requestDoc)).data();
+      const requestData = (await getDoc(requestDoc)).data();
+
+      // Add friend relationship in 'friends' collection
       await setDoc(doc(db, 'friends', `${user.uid}_${requestData.from}`), {
         users: [user.uid, requestData.from],
       });
 
-      // Remove the friend request
-      await updateDoc(requestDoc, { status: 'accepted' });
+      //Remove the friend request by updating its status
+      await updateDoc(requestDoc, {status: 'accepted'});
+
 
       alert('Friend request accepted!');
     } catch (err) {
@@ -166,6 +154,22 @@ function FriendsPage() {
       setLoading(false);
     }
   };
+  //Render friend request button based on status
+  const renderRequestButton = (userId) => {
+    if (sentRequests.has(userId)) {
+    return <Button variant = "contained" color = "secondary" disabled>Pending</Button>;
+  }
+  return (
+    <Button
+      variant="contained"
+      color="primary"
+      onClick={() => sendFriendRequest(userId)}
+      disabled={loading}
+    >
+      {loading ? <CircularProgress size={24} /> : 'Add Friend'}
+    </Button>
+  );
+};
 
   return (
     <Container sx={{ mt: 4 }}>
@@ -174,7 +178,7 @@ function FriendsPage() {
           gutterBottom 
           sx={{ fontWeight: 'bold', color: 'text.primary' }}
           >
-          Find Friends
+          Find Friend
       </Typography>
       {error && (
         <Typography variant="body1" sx={{ color: 'red', mb: 2 }}>
@@ -193,7 +197,7 @@ function FriendsPage() {
         <Button
           variant="contained"
           color="primary"
-          onClick={handleSearch}
+          onClick= {() => handleSearch()}
           disabled={loading}
         >
           {loading ? <CircularProgress size={24} /> : 'Search'}
@@ -207,14 +211,7 @@ function FriendsPage() {
           <ListItem key={user.id}>
             <Avatar src={user.profilePicture} sx={{ mr: 2 }} />
             <ListItemText primary={user.username} />
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => sendFriendRequest(user.id)}
-              disabled={loading}
-            >
-              Add Friend
-            </Button>
+            {renderRequestButton(user.id)}
           </ListItem>
         ))}
       </List>
@@ -245,17 +242,14 @@ function FriendsPage() {
         Friend Requests (Sent)
       </Typography>
       <List>
-        {sentFriendRequests.length == 0 ? (
-          <Typography>No outgoing friend requests.</Typography>
-        ) : (
-          sentFriendRequests.map((request) => (
-          <ListItem key={request.id}>
-            <Avatar src={request.profilePicture} sx={{ mr: 2 }} />
-            <ListItemText primary={request.username} />
+        {friends.map((friendId) => (
+          <ListItem key={friendId}>
+            <Avatar src={friendId.profilePicture} sx={{ mr: 2 }} />
+            <ListItemText primary={friendId.username} />
             <Button
               variant="contained"
               color="primary"
-              onClick={() => navigate(`/messages/${request.id}`)}
+              onClick={() => navigate(`/messages/${friendId}`)}
             >
               Message
             </Button>

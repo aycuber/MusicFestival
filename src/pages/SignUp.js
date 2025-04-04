@@ -58,7 +58,6 @@ function SignUp() {
         bio: '',
         profilePicture: '',
       });
-/** add functionality if the user with certain email already exists in firestore */
 
       navigate('/home');
     } catch (err) {
@@ -200,4 +199,4 @@ function SignUp() {
   );
 }
 
-export default SignUp; /** So that the variables, functions, classes, or components can be used in other files */
+export default SignUp;

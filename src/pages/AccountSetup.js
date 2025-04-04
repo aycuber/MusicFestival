@@ -36,6 +36,7 @@ const edmGenres = {
   'Future Bass': [],
   Trap: ['Hybrid Trap', 'Festival Trap']
 };
+/**This is just the setup for the profile page */
 
 function AccountSetup() {
   // Spotify config
