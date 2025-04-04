@@ -8,6 +8,7 @@ function FriendsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
+  const [sentRequests, setSentRequests] = useState(new Set());
   const [friends, setFriends] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -34,7 +35,8 @@ function FriendsPage() {
               return {
                 id: docSnap.id,
                 from: requestData.from,
-                fromUsername: fromUserData.username, // Fetch the username
+                fromUsername: fromUserData.username,
+                profilePicture: fromUserData.profilePicture,
                 status: requestData.status,
               };
             })
@@ -48,10 +50,18 @@ function FriendsPage() {
             where('status', '==', 'pending')
           );
           const friendsSnapshot = await getDocs(friendsQuery);
-          const friendsList = friendsSnapshot.docs.map((doc) => {
-            const friendId = doc.data().users.find((uid) => uid !== user.uid);
-            return friendId;
-          });
+          const friendsList = await Promise.all(
+            friendsSnapshot.docs.map(async (docSnap) => {
+              const friendId = docSnap.data().users.find((uid) => uid !== user.uid);
+              const friendDoc = await getDoc(doc(db, 'users', friendId));
+              const friendData = friendDoc.exists() ? friendDoc.data() : {};
+              return {
+                id: friendId,
+                username: friendData.username,
+                profilePicture: friendData.profilePicture,
+              };
+            })
+          );
           setFriends(friendsList);
         } catch (err) {
           setError('Failed to fetch friend data');
@@ -173,12 +183,8 @@ function FriendsPage() {
 
   return (
     <Container sx={{ mt: 4 }}>
-      <Typography 
-          variant="h4" 
-          gutterBottom 
-          sx={{ fontWeight: 'bold', color: 'text.primary' }}
-          >
-          Find Friend
+      <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: 'text.primary' }}>
+        Find Friend
       </Typography>
       {error && (
         <Typography variant="body1" sx={{ color: 'red', mb: 2 }}>
@@ -242,14 +248,14 @@ function FriendsPage() {
         Friend Requests (Sent)
       </Typography>
       <List>
-        {friends.map((friendId) => (
-          <ListItem key={friendId}>
-            <Avatar src={friendId.profilePicture} sx={{ mr: 2 }} />
-            <ListItemText primary={friendId.username} />
+        {friends.map((friend) => (
+          <ListItem key={friend.id}>
+            <Avatar src={friend.profilePicture} sx={{ mr: 2 }} />
+            <ListItemText primary={friend.username} />
             <Button
               variant="contained"
               color="primary"
-              onClick={() => navigate(`/messages/${friendId}`)}
+              onClick={() => navigate(`/messages/${friend.id}`)}
             >
               Message
             </Button>
