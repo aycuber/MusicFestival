@@ -62,7 +62,6 @@ function ExplorePage() {
           id: event.id,
           name: event.name,
           image: event.images.find(img => img.ratio === '16_9')?.url || 'https://via.placeholder.com/300',
-          description: event.info || 'No description available.',
           url: event.url,
         }));
 
