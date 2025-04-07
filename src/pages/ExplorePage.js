@@ -3,6 +3,8 @@ import { Container, Typography, Grid, Card, CardMedia, CardContent, Button } fro
 import axios from 'axios';
 import { auth, db } from '../firebase';
 import { getDoc, doc } from 'firebase/firestore';
+import LoadingSpinner from '../components/LoadingSpinner';
+import { Box } from '@mui/material';
 
 function ExplorePage() {
   const [festivals, setFestivals] = useState([]);
@@ -77,7 +79,20 @@ function ExplorePage() {
   }, [selectedGenres]);
 
   if (loading) {
-    return <Typography>Loading...</Typography>;
+    return (
+        <Box
+          sx={{
+            width: '100vw',
+            height: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'black',
+          }}
+        >
+          <LoadingSpinner />
+        </Box>
+      );
   }
 
   if (error) {

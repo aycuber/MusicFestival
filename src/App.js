@@ -30,6 +30,8 @@ import FestivalDetailsPage from './pages/FestivalDetailsPage';
 import GroupsPage from './pages/GroupsPage';
 import AccountSetup from './pages/AccountSetup';
 import FriendProfilePage from './pages/FriendProfilePage';
+import LoadingSpinner from './components/LoadingSpinner';
+import { Box } from '@mui/material';
 
 /**
  * A small helper to store nodeRefs for each location.key,
@@ -96,7 +98,20 @@ function App() {
   }, []);
 
   if (authLoading) {
-    return <div>Loading...</div>;
+    return (
+      <Box
+        sx={{
+          width: '100vw',
+          height: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'black',
+        }}
+      >
+        <LoadingSpinner />
+      </Box>
+    );
   }
 
   return (
