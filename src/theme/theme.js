@@ -77,7 +77,7 @@ theme = responsiveFontSizes(theme);
  */
 export const MyAppBar = () => {
   return (
-    <AppBar position="static">
+    <AppBar id="topbar" position="static">
       <Toolbar sx={{ flexWrap: 'wrap' }}>
         {/* Logo/Home Icon => navigates to "/home" */}
         <IconButton
