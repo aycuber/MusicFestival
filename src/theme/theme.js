@@ -83,7 +83,7 @@ export const MyAppBar = () => {
         <IconButton
           color="inherit"
           component={Link}
-          to="/home"
+          to="/"
           sx={{ mr: 1 }}
         >
           <Home />
