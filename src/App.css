@@ -43,5 +43,15 @@ body {
   background-color: #f5f5f5;
 }
 
+.card-enter {
+  opacity: 0;
+  transform: scale(0.9);
+}
+.card-enter-active {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 400ms, transform 400ms;
+}
+
 /* Add a modern, student-friendly font */
 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');

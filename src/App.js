@@ -4,9 +4,10 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
-  useLocation
+  useLocation,
+  Navigate
 } from 'react-router-dom';
-import { ThemeProvider, CssBaseline } from '@mui/material';
+import { ThemeProvider, CssBaseline, Box } from '@mui/material';
 import {
   onAuthStateChanged,
   setPersistence,
@@ -31,7 +32,6 @@ import GroupsPage from './pages/GroupsPage';
 import AccountSetup from './pages/AccountSetup';
 import FriendProfilePage from './pages/FriendProfilePage';
 import LoadingSpinner from './components/LoadingSpinner';
-import { Box } from '@mui/material';
 
 /**
  * A small helper to store nodeRefs for each location.key,
@@ -41,13 +41,15 @@ const nodeRefMap = new Map();
 
 function AnimatedRoutes() {
   const location = useLocation();
-
   // Prepare a nodeRef for the current location key
   let nodeRef = nodeRefMap.get(location.key);
   if (!nodeRef) {
     nodeRef = React.createRef();
     nodeRefMap.set(location.key, nodeRef);
   }
+
+  // Check if user is logged in
+  const user = auth.currentUser;
 
   return (
     <TransitionGroup component={null}>
@@ -57,17 +59,29 @@ function AnimatedRoutes() {
         timeout={1400}
         nodeRef={nodeRef}
       >
-        {/* We wrap <Routes> in a <div> with ref={nodeRef} */}
         <div ref={nodeRef}>
           <Routes location={location}>
             <Route path="/" element={<LandingPage />} />
             <Route path="/signup" element={<SignUp />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/profile" element={<ProfilePage />} />
+
+            {/* If user not logged in, redirect to /signup for these routes */}
+            <Route
+              path="/profile"
+              element={user ? <ProfilePage /> : <Navigate to="/signup" replace />}
+            />
+            <Route
+              path="/friends"
+              element={user ? <FriendsPage /> : <Navigate to="/signup" replace />}
+            />
+            <Route
+              path="/messaging"
+              element={user ? <MessagingPage /> : <Navigate to="/signup" replace />}
+            />
+
+            {/* Other routes remain the same */}
             <Route path="/explore" element={<ExplorePage />} />
             <Route path="/search" element={<SearchPage />} />
-            <Route path="/friends" element={<FriendsPage />} />
-            <Route path="/messaging" element={<MessagingPage />} />
             <Route path="/festival/:id" element={<FestivalDetailsPage />} />
             <Route path="/groups" element={<GroupsPage />} />
             <Route path="/account-setup" element={<AccountSetup />} />
@@ -117,7 +131,6 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-
       <Router>
         {window.location.pathname !== '/account-setup' && <MyAppBar />}
         <AnimatedRoutes />
