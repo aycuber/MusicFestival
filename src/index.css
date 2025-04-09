@@ -11,3 +11,26 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+.fade-enter {
+  opacity: 0;
+  transform: translateY(20px) scale(0.98);
+}
+
+.fade-enter-active {
+  opacity: 1;
+  transform: translateY(0px) scale(1);
+  transition: opacity 1400ms, transform 1400ms;
+}
+
+.fade-exit {
+  opacity: 1;
+  transform: translateY(0px) scale(1);
+}
+
+.fade-exit-active {
+  opacity: 0;
+  transform: translateY(-20px) scale(0.98);
+  transition: opacity 000ms, transform 000ms;
+}
+
