@@ -19,6 +19,7 @@ function FriendsPage() {
     const fetchFriendData = async () => {
         const user = auth.currentUser;
         if (!user) return;
+
         try {
           // Fetch incoming friend requests (received)
           const friendRequestsQuery = query(
@@ -71,6 +72,8 @@ function FriendsPage() {
 
     fetchFriendData();
   }, []);
+
+
 
   // Search for users by username
   const handleSearch = async () => {
@@ -135,6 +138,8 @@ function FriendsPage() {
     }
   };
 
+
+
   // Accept a friend request
   const acceptFriendRequest = async (requestId) => {
     setLoading(true);
@@ -164,11 +169,14 @@ function FriendsPage() {
       setLoading(false);
     }
   };
+
+
   //Render friend request button based on status
   const renderRequestButton = (userId) => {
     if (sentRequests.has(userId)) {
     return <Button variant = "contained" color = "secondary" disabled>Pending</Button>;
   }
+  
   return (
     <Button
       variant="contained"
@@ -260,8 +268,27 @@ function FriendsPage() {
               Message
             </Button>
           </ListItem>
-        )))}
+        ))}
       </List>
+      <Typography variant="h6" gutterBottom>Your Friends</Typography>
+      {friends.length === 0 ? (
+    <Typography>No friends yet.</Typography>
+  ) : (
+    <List>
+      {friends.map((friend) => (
+      <ListItem key={friend.id}>
+        <Avatar src={friend.profilePicture} />
+        <ListItemText primary={friend.username} />
+        <Button
+          variant="outlined"
+          onClick={() => navigate(`/chat/${friend.id}`)}
+        >
+          Message
+        </Button>
+      </ListItem>
+    ))}
+  </List>
+)}
     </Container>
   );
 }
