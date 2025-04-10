@@ -45,13 +45,78 @@ body {
 
 .card-enter {
   opacity: 0;
-  transform: scale(0.9);
+  transform: translateY(30px);
 }
 .card-enter-active {
   opacity: 1;
-  transform: scale(1);
-  transition: opacity 400ms, transform 400ms;
+  transform: translateY(0);
+  transition: transform 0.6s, opacity 0.6s;
 }
+
+.zip-popdown {
+  position: absolute;
+  background-color: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 8px;
+  z-index: 999; /* ensure it appears on top */
+  cursor: pointer;
+}
+.zip-popdown:hover {
+  background-color: #f5f5f5;
+}
+
+.MuiPickerStaticWrapper-root, 
+.MuiPaper-root.MuiDateRangePickerViewDesktop-container {
+  background-color: #1E1E1E !important;
+  color: #fff;
+}
+
+.MuiPickerStaticWrapper-root .MuiIconButton-root {
+  color: #fff;
+}
+
+/* Dark style for the date popdown */
+.date-popdown {
+  position: absolute;
+  background-color: #1E1E1E; /* dark aesthetic */
+  color: #fff;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 16px;
+  z-index: 999;
+  width: 300px;
+}
+
+.date-popdown input[type="date"] {
+  background-color: #2A2A2A;
+  color: #fff;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 4px;
+}
+
+.date-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.date-cell {
+  text-align: center;
+  padding: 6px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+.date-cell:hover {
+  background-color: #333;
+}
+.date-selected {
+  background-color: #9c27b0;
+}
+
 
 /* Add a modern, student-friendly font */
 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
