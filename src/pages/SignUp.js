@@ -60,7 +60,7 @@ function SignUp() {
       });
 /** add functionality if the user with certain email already exists in firestore */
 
-      navigate('/home');
+      navigate('/account-setup');
     } catch (err) {
       setError(err.message);
       console.error('Error signing up:', err);
@@ -93,7 +93,7 @@ function SignUp() {
         });
       }
 
-      navigate('/home');
+      navigate('/account-setup');
     } catch (err) {
       setError(err.message);
       console.error('Google Sign Up error:', err);
