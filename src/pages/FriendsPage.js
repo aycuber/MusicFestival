@@ -77,6 +77,12 @@ function FriendsPage() {
           acceptedSnapshot.docs.map(async (docSnap) => {
             const friendId = docSnap.data().users.find((uid) => uid !== user.uid);
             const friendDoc = await getDoc(doc(db, 'users', friendId));
+
+            //check if friend Exists...returns warning if user doesn't exist
+            if (!friendDoc.exists()) {
+              console.warn('Friend with ID ${FriendId} not found in Firestore');
+              return null;
+            }
             const friendData = friendDoc.exists() ? friendDoc.data() : {};
             return {
               id: friendId,
@@ -85,7 +91,7 @@ function FriendsPage() {
             };
           })
         );
-        setAcceptedFriends(acceptedList);
+        setAcceptedFriends(acceptedList.filter(Boolean));
       } catch (err) {
         setError('Failed to fetch friend data');
         console.error(err);
@@ -190,7 +196,6 @@ await updateDoc(requestDoc, { status: 'accepted' });
       setLoading(false);
     }
   };
-
 
   //Render friend request button based on status
   const renderRequestButton = (userId) => {
