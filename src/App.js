@@ -86,7 +86,8 @@ function AnimatedRoutes() {
             <Route path="/groups" element={<GroupsPage />} />
             <Route path="/account-setup" element={<AccountSetup />} />
             <Route path="/profile/:friendId" element={<FriendProfilePage />} />
-            <Route path="/messages/:friendId" element={<MessagingPage />} />
+            <Route path="/messaging" element={<MessagingPage />} />
+            <Route path="/messaging/:chatId" element={<MessagingPage />} />
           </Routes>
         </div>
       </CSSTransition>
