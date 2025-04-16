@@ -1,141 +1,160 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Typography, Box, List, ListItem, ListItemText, TextField, Button, CircularProgress, Avatar } from '@mui/material';
-import { useParams } from 'react-router-dom'; // To get friendId from URL
+// MessagingPage.js
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Container,
+  Typography,
+  Box,
+  List,
+  ListItem,
+  ListItemText,
+  TextField,
+  Button,
+  CircularProgress,
+  Avatar
+} from '@mui/material';
+import { useParams } from 'react-router-dom';
+import {
+  doc,
+  getDoc,
+  setDoc,
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  addDoc
+} from 'firebase/firestore';
 import { auth, db } from '../firebase';
-import { collection, doc, getDoc, setDoc, query, where, getDocs, updateDoc, arrayUnion } from 'firebase/firestore';
 
-function MessagingPage() {
-  const { friendId } = useParams();  // Get friendId from the URL
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+export default function MessagingPage() {
+  const { friendId } = useParams();
   const [friendData, setFriendData] = useState(null);
+  const [chatId, setChatId] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newMessage, setNewMessage] = useState('');
+  const endRef = useRef(null);
 
   useEffect(() => {
-    if (!friendId) {
-      setError('Friend ID is missing.');
-      console.error('Friend ID is missing!');
-      return;
-    }
+    const user = auth.currentUser;
+    if (!user || !friendId) return;
 
-    const fetchMessages = async () => {
-      const user = auth.currentUser;
-      if (!user || !friendId) return;
+    // 1) compute a stable chatId
+    const uids = [user.uid, friendId].sort();
+    const key = `${uids[0]}_${uids[1]}`;
+    setChatId(key);
 
-      // Fetching the messages between the user and the friend
-      const messagesQuery = query(
-        collection(db, 'messages'),
-        where('users', 'array-contains', user.uid),
-        where('users', 'array-contains', friendId)
-      );
-
-      try {
-        const snapshot = await getDocs(messagesQuery);
-        const fetchedMessages = snapshot.docs.map((doc) => doc.data());
-        setMessages(fetchedMessages);
-      } catch (err) {
-        setError('Failed to load messages');
-        console.error('Error loading messages:', err);
-      }
-    };
-
-    const fetchFriendData = async () => {
-      try {
-        // Validate if friendId is a valid string
-        if (typeof friendId !== 'string' || friendId.trim() === '') {
-          throw new Error('Invalid friendId');
+    // 2) ensure the chat doc exists
+    const chatRef = doc(db, 'chats', key);
+    getDoc(chatRef)
+      .then((snap) => {
+        if (!snap.exists()) {
+          return setDoc(chatRef, { participants: uids });
         }
+      })
+      .catch(console.error);
 
-        const friendDocRef = doc(db, 'users', friendId);
-        const friendDoc = await getDoc(friendDocRef);
-
-        // Check if the friend document exists
-        if (friendDoc.exists()) {
-          setFriendData(friendDoc.data());
-        } else {
-          setError('Friend not found');
-          console.error('Friend document not found in Firestore');
-        }
-      } catch (err) {
-        setError('Failed to load friend data');
-        console.error('Error loading friend data:', err);
+    // 3) listen in real-time to messages
+    const msgsCol = collection(db, 'chats', key, 'messages');
+    const q = query(msgsCol, orderBy('timestamp', 'asc'));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const msgs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setMessages(msgs);
+        setLoading(false);
+        // scroll to bottom
+        setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      },
+      (err) => {
+        console.error('Message listener error:', err);
+        setLoading(false);
       }
-    };
+    );
 
-    // Fetch both messages and friend data
-    fetchMessages();
-    fetchFriendData();
+    // 4) load friend’s profile for their name/avatar
+    const friendRef = doc(db, 'users', friendId);
+    getDoc(friendRef)
+      .then((snap) => {
+        if (snap.exists()) setFriendData(snap.data());
+      })
+      .catch(console.error);
+
+    return () => unsub();
   }, [friendId]);
 
   const sendMessage = async () => {
-    setLoading(true);
-    setError('');
-
+    const user = auth.currentUser;
+    if (!user || !chatId || !newMessage.trim()) return;
+    const msgsCol = collection(db, 'chats', chatId, 'messages');
     try {
-      const user = auth.currentUser;
-      if (!user) throw new Error('User not logged in');
-
-      await setDoc(doc(db, 'messages', `${user.uid}_${friendId}`), {
-        users: [user.uid, friendId],
-        messages: arrayUnion({
-          sender: user.uid,
-          text: newMessage,
-          timestamp: new Date(),
-        }),
+      await addDoc(msgsCol, {
+        sender: user.uid,
+        text: newMessage.trim(),
+        timestamp: new Date()
       });
-
       setNewMessage('');
     } catch (err) {
-      setError('Failed to send message');
-      console.error('Error sending message:', err);
-    } finally {
-      setLoading(false);
+      console.error('Send message failed:', err);
     }
   };
 
   return (
     <Container sx={{ mt: 4 }}>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: '#1976d2' }}>
-        Messages with {friendData ? friendData.username : 'Loading...'}
+      <Typography variant="h4" gutterBottom>
+        Messages with {friendData ? friendData.username : '...'}
       </Typography>
 
-      {error && (
-        <Typography variant="body1" sx={{ color: 'red', mb: 2 }}>
-          {error}
-        </Typography>
+      {loading ? (
+        <Box sx={{ textAlign: 'center', mt: 4 }}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <>
+          <Box
+            sx={{
+              maxHeight: 400,
+              overflowY: 'auto',
+              mb: 2,
+              border: '1px solid rgba(0,0,0,0.1)',
+              borderRadius: 1,
+              p: 1
+            }}
+          >
+            <List>
+              {messages.map((msg) => (
+                <ListItem key={msg.id} alignItems="flex-start">
+                  <Avatar
+                    sx={{ mr: 2 }}
+                    src={
+                      msg.sender === auth.currentUser.uid
+                        ? auth.currentUser.photoURL
+                        : friendData?.profilePicture
+                    }
+                  />
+                  <ListItemText
+                    primary={msg.text}
+                    secondary={new Date(msg.timestamp?.toDate?.() || msg.timestamp).toLocaleString()}
+                  />
+                </ListItem>
+              ))}
+              <div ref={endRef} />
+            </List>
+          </Box>
+
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <TextField
+              fullWidth
+              label="Type a message…"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+            />
+            <Button variant="contained" onClick={sendMessage}>
+              Send
+            </Button>
+          </Box>
+        </>
       )}
-
-      {/* Message List */}
-      <Box sx={{ maxHeight: '400px', overflowY: 'auto', mb: 2 }}>
-        <List>
-          {messages.map((message, index) => (
-            <ListItem key={index}>
-              <Avatar sx={{ mr: 2 }} src={message.sender === auth.currentUser?.uid ? auth.currentUser.photoURL : friendData?.profilePicture} />
-              <ListItemText primary={message.text} secondary={new Date(message.timestamp?.seconds * 1000).toLocaleString()} />
-            </ListItem>
-          ))}
-        </List>
-      </Box>
-
-      {/* Input for new messages */}
-      <TextField
-        fullWidth
-        label="Type a message"
-        value={newMessage}
-        onChange={(e) => setNewMessage(e.target.value)}
-        sx={{ mb: 2 }}
-      />
-      <Button
-        variant="contained"
-        color="primary"
-        onClick={sendMessage}
-        disabled={loading}
-      >
-        {loading ? <CircularProgress size={24} /> : 'Send'}
-      </Button>
     </Container>
   );
 }
-
-export default MessagingPage;
