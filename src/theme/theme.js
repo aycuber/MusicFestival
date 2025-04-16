@@ -12,23 +12,17 @@ import {
 import { Link } from 'react-router-dom';
 import { AccountCircle, Mail, Home } from '@mui/icons-material';
 
-/**
- * 1) Define your MUI theme
- */
 let theme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      // Vibrant purple accent
-      main: '#9c27b0',
+      main: '#9c27b0', // Vibrant purple accent
     },
     secondary: {
-      // Bright pink accent
-      main: '#e91e63',
+      main: '#e91e63', // Bright pink accent
     },
     background: {
-      // Typical dark background
-      default: '#121212',
+      default: '#121212',  // Typical dark background
       paper: '#1E1E1E',
     },
     text: {
@@ -37,7 +31,6 @@ let theme = createTheme({
     },
   },
   typography: {
-    // Font families often used for modern EDM vibes
     fontFamily: 'Montserrat, Roboto, sans-serif',
     h6: {
       fontWeight: 700,
@@ -50,9 +43,7 @@ let theme = createTheme({
     MuiAppBar: {
       styleOverrides: {
         root: {
-          // Add a subtle gradient effect to the AppBar
           background: 'linear-gradient(90deg, #9c27b0 0%, #e91e63 100%)',
-          // Let content wrap if it's too narrow on mobile
           flexWrap: 'wrap',
         },
       },
@@ -60,7 +51,7 @@ let theme = createTheme({
     MuiButton: {
       styleOverrides: {
         root: {
-          textTransform: 'none', // Keep text as is, more modern feel
+          textTransform: 'none',
           borderRadius: 6,
         },
       },
@@ -79,7 +70,7 @@ export const MyAppBar = () => {
   return (
     <AppBar id="topbar" position="static">
       <Toolbar sx={{ flexWrap: 'wrap' }}>
-        {/* Logo/Home Icon => navigates to "/home" */}
+        {/* Logo/Home Icon => navigates to "/" */}
         <IconButton
           color="inherit"
           component={Link}
@@ -95,25 +86,46 @@ export const MyAppBar = () => {
           sx={{
             flexGrow: 1,
             fontWeight: 'bold',
-            // On very small screens, reduce font size a bit
             fontSize: { xs: '1rem', sm: '1.25rem' },
           }}
         >
           YourTune
         </Typography>
 
-        {/* Desktop/Tablet Nav Buttons
-            Let them wrap if there's no space
-          */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
-          <Button color="inherit" component={Link} to="/explore" sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}>
+          <Button
+            color="inherit"
+            component={Link}
+            to="/explore"
+            sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}
+          >
             Explore
           </Button>
-          <Button color="inherit" component={Link} to="/search" sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}>
+          <Button
+            color="inherit"
+            component={Link}
+            to="/search"
+            sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}
+          >
             Search
           </Button>
-          <Button color="inherit" component={Link} to="/friends" sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}>
+          <Button
+            color="inherit"
+            component={Link}
+            to="/friends"
+            sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}
+          >
             Friends
+          </Button>
+          
+          {/* NEW: Groups button */}
+          <Button
+            color="inherit"
+            component={Link}
+            to="/groups"
+            sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}
+          >
+            Groups
           </Button>
 
           {/* Message Icon => navigates to "/messaging" */}
