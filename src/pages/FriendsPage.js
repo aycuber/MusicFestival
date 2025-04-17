@@ -330,7 +330,7 @@ await updateDoc(requestDoc, { status: 'accepted' });
         <Button
           variant="contained"
           color="primary"
-          onClick={() => navigate(`/messages/${friend.id}`)}
+          onClick={() => navigate(`/messaging/${friend.id}`)}
         >
           Message
         </Button>
