@@ -5,6 +5,7 @@ import { auth, db } from '../firebase';
 import { getDoc, doc } from 'firebase/firestore';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { Box } from '@mui/material';
+import { logInteraction } from '../utils/logInteractions';
 
 function ExplorePage() {
   const [festivals, setFestivals] = useState([]);
@@ -121,16 +122,36 @@ function ExplorePage() {
               <CardContent>
                 <Typography variant="h6">{festival.name}</Typography>
                 <Typography variant="body2">{festival.description}</Typography>
+                <Box sx = {{display: 'flex', mt: 2}}>
                 <Button
                   variant="contained"
+                  onClick = {() => {
+                    console.log('Learn More clicked', festival.id);
+                    logInteraction(festival.id, 0.5);   //moderate interest in the festival/event
+                    window.open(festival.url, '_blank');
+                  }}
                   color="primary"
-                  sx={{ mt: 2 }}
                   href={festival.url}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
                   Learn More
                 </Button>
+                <Button
+                variant = "contained"
+                onClick = {() => {
+                  logInteraction(festival.id, 1);   //high interest in the festival/event
+                  window.open(festival.url, '_blank');
+                }}
+                color = "primary"
+                sx = {{ml : 1}}
+                href = {festival.url}
+                target = "_blank"
+                rel = "noopener noreferrer"
+                >
+                  Buy Now
+                </Button>
+                </Box>
               </CardContent>
             </Card>
           </Grid>
