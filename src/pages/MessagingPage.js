@@ -4,15 +4,17 @@ import {
   Container,
   Typography,
   Box,
+  Avatar,
+  TextField,
+  IconButton,
+  CircularProgress,
   List,
   ListItem,
   ListItemAvatar,
-  Avatar,
   ListItemText,
-  TextField,
-  Button,
-  CircularProgress
+  keyframes
 } from '@mui/material';
+import SendIcon from '@mui/icons-material/Send';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   collection,
@@ -28,8 +30,19 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 
+const fadeSlideIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+`;
+
 export default function MessagingPage() {
-  const { chatId } = useParams();    // either: undefined, "<friendUid>", or "group_<groupId>"
+  const { chatId } = useParams();    // undefined, "<friendUid>" or "group_<groupId>"
   const navigate = useNavigate();
   const me = auth.currentUser;
   const endRef = useRef();
@@ -43,18 +56,15 @@ export default function MessagingPage() {
   const [loadingChat, setLoadingChat] = useState(!!chatId);
   const [newMessage, setNewMessage] = useState('');
 
-  // 1) If no chatId, load BOTH your friends & your groups
+  // 1) If no chatId, load friends & groups for selection
   useEffect(() => {
     if (chatId || !me) return;
     setLoadingList(true);
 
-    // fetch friends
     const friendsQ = query(
       collection(db, 'friends'),
       where('users', 'array-contains', me.uid)
     );
-
-    // fetch groups you're in
     const groupsQ = query(
       collection(db, 'groups'),
       where('members', 'array-contains', me.uid)
@@ -62,11 +72,10 @@ export default function MessagingPage() {
 
     Promise.all([ getDocs(friendsQ), getDocs(groupsQ) ])
       .then(async ([fSnap, gSnap]) => {
-        // build friend list
         const fl = await Promise.all(fSnap.docs.map(async d => {
           const other = d.data().users.find(u => u !== me.uid);
           const udoc = await getDoc(doc(db, 'users', other));
-          return { 
+          return {
             id: other,
             username: udoc.data()?.username,
             avatar: udoc.data()?.profilePicture
@@ -74,11 +83,10 @@ export default function MessagingPage() {
         }));
         setFriends(fl);
 
-        // build group list
         const gl = gSnap.docs.map(d => ({
           id: d.id,
           name: d.data().name,
-          avatar: null  // you can pick a group icon if you like
+          avatar: d.data().photoURL || null
         }));
         setGroups(gl);
       })
@@ -86,57 +94,61 @@ export default function MessagingPage() {
       .finally(() => setLoadingList(false));
   }, [chatId, me]);
 
-  // 2) If chatId is present, join that chat stream
+  // 2) If chatId is present, subscribe to that chat’s messages
   useEffect(() => {
     if (!chatId || !me) return;
     const isGroup = chatId.startsWith('group_');
     setLoadingChat(true);
 
     if (isGroup) {
-      // load group meta
-      const gid = chatId.replace(/^group_/,'');
+      const gid = chatId.replace(/^group_/, '');
       getDoc(doc(db,'groups',gid))
-        .then(snap => setPeerData({ name: snap.data()?.name }))
+        .then(snap =>
+          setPeerData({
+            name: snap.data()?.name,
+            avatar: snap.data()?.photoURL
+          })
+        )
         .catch(console.error);
 
-      // listen to group messages
       const msgs = collection(db,'groups',gid,'messages');
       const unsub = onSnapshot(
         query(msgs, orderBy('timestamp','asc')),
         snap => {
-          setMessages(snap.docs.map(d=>({ id:d.id, ...d.data() })));
+          setMessages(snap.docs.map(d => ({ id:d.id, ...d.data() })));
           setLoadingChat(false);
-          setTimeout(()=> endRef.current?.scrollIntoView({behavior:'smooth'}),100);
+          setTimeout(() => endRef.current?.scrollIntoView({ behavior:'smooth' }), 100);
         },
         console.error
       );
       return () => unsub();
     } else {
-      // friend chat
       getDoc(doc(db,'users',chatId))
-        .then(snap => setPeerData({ username: snap.data()?.username,
-                                   avatar: snap.data()?.profilePicture }))
+        .then(snap =>
+          setPeerData({
+            username: snap.data()?.username,
+            avatar: snap.data()?.profilePicture
+          })
+        )
         .catch(console.error);
 
-      // ensure chat doc exists under "chats/<me>_<friend>/messages"
       const uids = [me.uid, chatId].sort().join('_');
       const chatRef = doc(db,'chats',uids);
-      getDoc(chatRef).then(snap=>{
-        if (!snap.exists()) setDoc(chatRef,{participants:[me.uid,chatId]});
+      getDoc(chatRef).then(snap => {
+        if (!snap.exists()) setDoc(chatRef,{ participants:[me.uid,chatId] });
       });
 
-      // subscribe to /chats/<uids>/messages
       const msgs = collection(db,'chats',uids,'messages');
       const unsub = onSnapshot(
         query(msgs, orderBy('timestamp','asc')),
         snap => {
-          setMessages(snap.docs.map(d=>({ id:d.id, ...d.data() })));
+          setMessages(snap.docs.map(d => ({ id:d.id, ...d.data() })));
           setLoadingChat(false);
-          setTimeout(()=> endRef.current?.scrollIntoView({behavior:'smooth'}),100);
+          setTimeout(() => endRef.current?.scrollIntoView({ behavior:'smooth' }), 100);
         },
         console.error
       );
-      return ()=>unsub();
+      return () => unsub();
     }
   }, [chatId, me]);
 
@@ -144,14 +156,16 @@ export default function MessagingPage() {
     if (!newMessage.trim() || !chatId) return;
     const isGroup = chatId.startsWith('group_');
     let targetCol;
+
     if (isGroup) {
-      const gid = chatId.replace(/^group_/,'');
+      const gid = chatId.replace(/^group_/, '');
       targetCol = collection(db,'groups',gid,'messages');
     } else {
-      const uids = [me.uid,chatId].sort().join('_');
+      const uids = [me.uid, chatId].sort().join('_');
       targetCol = collection(db,'chats',uids,'messages');
     }
-    await addDoc(targetCol,{
+
+    await addDoc(targetCol, {
       sender: me.uid,
       text: newMessage.trim(),
       timestamp: new Date()
@@ -159,101 +173,183 @@ export default function MessagingPage() {
     setNewMessage('');
   };
 
-  // --- RENDER ---
-
-  //  ➤ no chatId? pick from friends or groups
+  // ─── CHAT SELECTION ──────────────────────────────────────────────────────────
   if (!chatId) {
     return (
-      <Container sx={{mt:4}}>
-        <Typography variant="h4"> Pick a chat </Typography>
-        {loadingList
-          ? <CircularProgress sx={{mt:4}}/>
-          : <>
-              <Typography sx={{mt:2}}> Friends </Typography>
+      <Container sx={{ mt:4 }}>
+        <Typography variant="h4">Pick a Chat</Typography>
+        {loadingList ? (
+          <CircularProgress sx={{ mt:4 }} />
+        ) : (
+          <>
+            <Typography variant="h6" sx={{ mt:2 }}>Friends</Typography>
+            {friends.length ? (
               <List>
-                {friends.map(f=>(
-                  <ListItem key={f.id} button
-                    onClick={()=>navigate(`/messaging/${f.id}`)}>
+                {friends.map(f => (
+                  <ListItem
+                    key={f.id}
+                    button
+                    onClick={() => navigate(`/messaging/${f.id}`)}
+                  >
                     <ListItemAvatar>
-                      <Avatar src={f.avatar}/>
+                      <Avatar src={f.avatar} />
                     </ListItemAvatar>
-                    <ListItemText primary={f.username}/>
+                    <ListItemText primary={f.username} />
                   </ListItem>
                 ))}
-                {friends.length===0 && <Typography>No friends yet.</Typography>}
               </List>
+            ) : (
+              <Typography>No friends yet.</Typography>
+            )}
 
-              <Typography sx={{mt:2}}> Groups </Typography>
+            <Typography variant="h6" sx={{ mt:2 }}>Groups</Typography>
+            {groups.length ? (
               <List>
-                {groups.map(g=>(
-                  <ListItem key={g.id} button
-                    onClick={()=>navigate(`/messaging/group_${g.id}`)}>
+                {groups.map(g => (
+                  <ListItem
+                    key={g.id}
+                    button
+                    onClick={() => navigate(`/messaging/group_${g.id}`)}
+                  >
                     <ListItemAvatar>
-                      <Avatar>{g.name.charAt(0)}</Avatar>
+                      <Avatar src={g.avatar}>{g.name.charAt(0)}</Avatar>
                     </ListItemAvatar>
-                    <ListItemText primary={g.name}/>
+                    <ListItemText primary={g.name} />
                   </ListItem>
                 ))}
-                {groups.length===0 && <Typography>No group chats.</Typography>}
               </List>
-            </>
-        }
+            ) : (
+              <Typography>No group chats.</Typography>
+            )}
+          </>
+        )}
       </Container>
     );
   }
 
-  //  ➤ in‑chat view
+  // ─── CHAT VIEW ────────────────────────────────────────────────────────────────
   return (
-    <Container sx={{mt:4}}>
-      <Typography variant="h4">
-        { chatId.startsWith('group_')
-          ? peerData?.name
-          : peerData?.username }
-      </Typography>
+    <Container sx={{ 
+      mt:4,
+      display:'flex',
+      flexDirection:'column',
+      height:'80vh' 
+    }}>
+      {/* Header with avatar + name */}
+      <Box sx={{ display:'flex', alignItems:'center', mb:2 }}>
+        <Avatar
+          src={
+            chatId.startsWith('group_')
+              ? peerData?.avatar
+              : peerData?.avatar
+          }
+          sx={{ width:40, height:40, mr:1 }}
+        >
+          {chatId.startsWith('group_')
+            ? peerData?.name?.charAt(0)
+            : peerData?.username?.charAt(0)}
+        </Avatar>
+        <Typography variant="h5">
+          {chatId.startsWith('group_') ? peerData?.name : peerData?.username}
+        </Typography>
+      </Box>
 
-      {loadingChat
-        ? <CircularProgress sx={{mt:4}}/>
-        : <>
-            <Box sx={{
-              maxHeight:400, overflowY:'auto',
-              border:'1px solid rgba(0,0,0,0.1)',
-              borderRadius:1,p:1,mb:2
-            }}>
-              <List>
-                {messages.map(m=>(
-                  <ListItem key={m.id} alignItems="flex-start">
-                    <ListItemAvatar>
-                      <Avatar src={
-                        m.sender===me.uid
-                          ? me.photoURL
-                          : peerData?.avatar
-                      }/>
-                    </ListItemAvatar>
-                    <ListItemText
-                      primary={m.text}
-                      secondary={new Date(m.timestamp?.toDate?.()||m.timestamp)
-                                 .toLocaleString()}
+      {loadingChat ? (
+        <Box sx={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <>
+          {/* Messages List */}
+          <Box
+            sx={{
+              flex:1,
+              overflowY:'auto',
+              display:'flex',
+              flexDirection:'column',
+              gap:1,
+              px:1, py:2,
+              bgcolor:'background.paper',
+              borderRadius:1,
+            }}
+          >
+            {messages.map(m => {
+              const isMe = m.sender === me.uid;
+              const time = new Date(
+                m.timestamp?.toDate?.() || m.timestamp
+              ).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+
+              return (
+                <Box
+                  key={m.id}
+                  sx={{
+                    display:'flex',
+                    alignItems:'flex-end',
+                    justifyContent: isMe ? 'flex-end' : 'flex-start',
+                    animation: `${fadeSlideIn} 0.25s ease-out`
+                  }}
+                >
+                  {!isMe && (
+                    <Avatar
+                      src={peerData?.avatar}
+                      sx={{ width:32, height:32, mr:1 }}
                     />
-                  </ListItem>
-                ))}
-                <div ref={endRef}/>
-              </List>
-            </Box>
+                  )}
+                  <Box sx={{ maxWidth:'70%' }}>
+                    <Box
+                      sx={{
+                        bgcolor: isMe ? '#e91e63' : '#9c27b0',
+                        color:'#fff',
+                        borderRadius: isMe
+                          ? '16px 16px 0 16px'
+                          : '16px 16px 16px 0',
+                        p:1,
+                        wordBreak:'break-word'
+                      }}
+                    >
+                      <Typography variant="body2">{m.text}</Typography>
+                    </Box>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color:'rgba(255,255,255,0.6)',
+                        mt:0.3,
+                        textAlign: isMe ? 'right' : 'left',
+                        display:'block'
+                      }}
+                    >
+                      {time}
+                    </Typography>
+                  </Box>
+                </Box>
+              );
+            })}
+            <div ref={endRef} />
+          </Box>
 
-            <Box sx={{display:'flex',gap:1}}>
-              <TextField
-                fullWidth
-                label="Type a message…"
-                value={newMessage}
-                onChange={e=>setNewMessage(e.target.value)}
-                onKeyDown={e=>e.key==='Enter' && sendMessage()}
-              />
-              <Button variant="contained" onClick={sendMessage}>
-                Send
-              </Button>
-            </Box>
-          </>
-      }
+          {/* Input Bar */}
+          <Box
+            component="form"
+            onSubmit={e => { e.preventDefault(); sendMessage(); }}
+            sx={{ display:'flex', alignItems:'center', gap:1, mt:2 }}
+          >
+            <TextField
+              fullWidth
+              variant="outlined"
+              placeholder="Type a message…"
+              value={newMessage}
+              onChange={e => setNewMessage(e.target.value)}
+            />
+            <IconButton
+              color="primary"
+              onClick={sendMessage}
+              disabled={!newMessage.trim()}
+            >
+              <SendIcon />
+            </IconButton>
+          </Box>
+        </>
+      )}
     </Container>
   );
 }
