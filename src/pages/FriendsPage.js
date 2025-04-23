@@ -1,8 +1,29 @@
+// src/pages/FriendsPage.js
 import React, { useState, useEffect } from 'react';
-import { TextField, Button, Container, Typography, Box, List, ListItem, Avatar, CircularProgress } from '@mui/material';
+import {
+  TextField,
+  Button,
+  Container,
+  Typography,
+  Box,
+  List,
+  ListItem,
+  Avatar,
+  CircularProgress
+} from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase';
-import { collection, query, where, getDocs, doc, setDoc, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  setDoc,
+  updateDoc,
+  getDoc,
+  deleteDoc
+} from 'firebase/firestore';
 
 function FriendsPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -19,107 +40,96 @@ function FriendsPage() {
     const user = auth.currentUser;
     if (!user) return;
     try {
-      // Fetch incoming friend requests (received)
-      const friendRequestsQuery = query(
+      // Incoming friend requests
+      const reqQ = query(
         collection(db, 'friendRequests'),
         where('to', '==', user.uid),
         where('status', '==', 'pending')
       );
-      const friendRequestsSnapshot = await getDocs(friendRequestsQuery);
+      const reqSnap = await getDocs(reqQ);
       const requests = await Promise.all(
-        friendRequestsSnapshot.docs.map(async (docSnap) => {
-          const requestData = docSnap.data();
-          const fromUserDoc = await getDoc(doc(db, 'users', requestData.from));
-          const fromUserData = fromUserDoc.exists() ? fromUserDoc.data() : {};
+        reqSnap.docs.map(async docSnap => {
+          const data = docSnap.data();
+          const u = await getDoc(doc(db, 'users', data.from));
           return {
             id: docSnap.id,
-            from: requestData.from,
-            fromUsername: fromUserData.username,
-            profilePicture: fromUserData.profilePicture,
-            status: requestData.status,
+            from: data.from,
+            fromUsername: u.exists() ? u.data().username : 'Unknown',
+            profilePicture: u.exists() ? u.data().profilePicture : '',
+            status: data.status
           };
         })
       );
       setFriendRequests(requests);
 
-      // Fetch sent friend requests (outgoing)
-      const sentRequestsQuery = query(
+      // Outgoing friend requests
+      const sentQ = query(
         collection(db, 'friendRequests'),
         where('from', '==', user.uid),
         where('status', '==', 'pending')
       );
-      const sentSnapshot = await getDocs(sentRequestsQuery);
+      const sentSnap = await getDocs(sentQ);
       const sentList = await Promise.all(
-        sentSnapshot.docs.map(async (docSnap) => {
-          const toUserId = docSnap.data().to;
-          const userDoc = await getDoc(doc(db, 'users', toUserId));
-          const userData = userDoc.exists() ? userDoc.data() : {};
+        sentSnap.docs.map(async docSnap => {
+          const toId = docSnap.data().to;
+          const u = await getDoc(doc(db, 'users', toId));
           return {
-            id: toUserId,
-            username: userData.username,
-            profilePicture: userData.profilePicture,
+            id: toId,
+            username: u.exists() ? u.data().username : 'Unknown',
+            profilePicture: u.exists() ? u.data().profilePicture : ''
           };
         })
       );
       setFriends(sentList);
 
-      // Fetch accepted friends
-      const acceptedFriendsQuery = query(
+      // Accepted friends
+      const accQ = query(
         collection(db, 'friends'),
         where('users', 'array-contains', user.uid),
         where('status', '==', 'accepted')
       );
-      const acceptedSnapshot = await getDocs(acceptedFriendsQuery);
-      const acceptedList = await Promise.all(
-        acceptedSnapshot.docs.map(async (docSnap) => {
-          const friendId = docSnap.data().users.find((uid) => uid !== user.uid);
-          const friendDoc = await getDoc(doc(db, 'users', friendId));
-
-          //check if friend Exists...returns warning if user doesn't exist
-          if (!friendDoc.exists()) {
-            console.warn(`Friend with ID ${friendId} not found in Firestore`);
-            return null;
-          }
-          const friendData = friendDoc.exists() ? friendDoc.data() : {};
+      const accSnap = await getDocs(accQ);
+      const accList = await Promise.all(
+        accSnap.docs.map(async docSnap => {
+          const ids = docSnap.data().users;
+          const friendId = ids.find(id => id !== user.uid);
+          const u = await getDoc(doc(db, 'users', friendId));
+          if (!u.exists()) return null;
           return {
             id: friendId,
-            username: friendData.username,
-            profilePicture: friendData.profilePicture,
+            username: u.data().username,
+            profilePicture: u.data().profilePicture
           };
         })
       );
-      setAcceptedFriends(acceptedList.filter(Boolean));
+      setAcceptedFriends(accList.filter(Boolean));
     } catch (err) {
-      setError('Failed to fetch friend data');
       console.error(err);
+      setError('Failed to fetch friend data');
     }
   };
-  // Fetch friend requests and friends on component mount
+
   useEffect(() => {
     fetchFriendData();
-  }, []);  
+  }, []);
 
-  // Search for users by username
   const handleSearch = async () => {
     setLoading(true);
     setError('');
-
     try {
       const user = auth.currentUser;
-      if (!user) throw new Error('User not logged in');
-
-      // Search for users by username
-      const usersQuery = query(collection(db, 'users'), where('username', '==', searchQuery));
-      const usersSnapshot = await getDocs(usersQuery);
-
-      if (usersSnapshot.empty) {
+      if (!user) throw new Error('Not logged in');
+      const usersQ = query(
+        collection(db, 'users'),
+        where('username', '==', searchQuery)
+      );
+      const snap = await getDocs(usersQ);
+      if (snap.empty) {
         setError('No users found');
         setSearchResults([]);
-        return;
+      } else {
+        setSearchResults(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       }
-
-      const results = usersSnapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-      setSearchResults(results);
     } catch (err) {
       setError(err.message);
       setSearchResults([]);
@@ -128,32 +138,17 @@ function FriendsPage() {
     }
   };
 
-  // Send a friend request
-  const sendFriendRequest = async (toUserId) => {
+  const sendFriendRequest = async toUserId => {
     setLoading(true);
     setError('');
-
     try {
       const user = auth.currentUser;
-      if (!user) throw new Error('User not logged in');
-
-      // Check if a request already exists
-      const existingRequestQuery = query(
-        collection(db, 'friendRequests'),
-        where('from', '==', user.uid),
-        where('to', '==', toUserId)
+      if (!user) throw new Error('Not logged in');
+      await setDoc(
+        doc(db, 'friendRequests', `${user.uid}_${toUserId}`),
+        { from: user.uid, to: toUserId, status: 'pending' }
       );
-      const existingRequestSnapshot = await getDocs(existingRequestQuery);
-
-      // Create a new friend request
-      await setDoc(doc(db, 'friendRequests', `${user.uid}_${toUserId}`), {
-        from: user.uid,
-        to: toUserId,
-        status: 'pending',
-      });
-      //create a new set for sent requests and update state
-      setSentRequests((prevSentRequests) => new Set(prevSentRequests).add(toUserId));
-
+      setSentRequests(prev => new Set(prev).add(toUserId));
       alert('Friend request sent!');
     } catch (err) {
       setError(err.message);
@@ -162,32 +157,22 @@ function FriendsPage() {
     }
   };
 
-  // Accept a friend request
-  const acceptFriendRequest = async (requestId) => {
+  const acceptFriendRequest = async requestId => {
     setLoading(true);
     setError('');
-
     try {
       const user = auth.currentUser;
-      if (!user) throw new Error('User not logged in');
-
-      // Get the friend request data
-      const requestDoc = doc(db, 'friendRequests', requestId);
-      const requestData = (await getDoc(requestDoc)).data();
-
-      // Add friend relationship in 'friends' collection
-      await setDoc(doc(db, 'friends', `${user.uid}_${requestData.from}`), {
-        users: [user.uid, requestData.from],
-        status: 'accepted'
-      });
-
-// Update request status to accepted
-await updateDoc(requestDoc, { status: 'accepted' });
-
-      //Remove the friend request by updating its status
-      await updateDoc(requestDoc, {status: 'accepted'});
-
+      if (!user) throw new Error('Not logged in');
+      const reqRef = doc(db, 'friendRequests', requestId);
+      const reqSnap = await getDoc(reqRef);
+      const { from } = reqSnap.data();
+      await setDoc(
+        doc(db, 'friends', `${user.uid}_${from}`),
+        { users: [user.uid, from], status: 'accepted' }
+      );
+      await updateDoc(reqRef, { status: 'accepted' });
       alert('Friend request accepted!');
+      fetchFriendData();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -195,115 +180,126 @@ await updateDoc(requestDoc, { status: 'accepted' });
     }
   };
 
-  //Render friend request button based on status
-  const renderRequestButton = (userId) => {
+  const renderRequestButton = userId => {
     if (sentRequests.has(userId)) {
-    return <Button variant = "contained" color = "secondary" disabled>Pending</Button>;
-  }
-  
-  return (
-    <Button
-      variant="contained"
-      color="primary"
-      onClick={() => sendFriendRequest(userId)}
-      disabled={loading}
-    >
-      {loading ? <CircularProgress size={24} /> : 'Add Friend'}
-    </Button>
-  );
-};
-      //Unadd a friend 
-    const removeFriend = async (friendId) => {
-      setLoading(true);
-      setError('');
+      return (
+        <Button variant="contained" color="secondary" disabled>
+          Pending
+        </Button>
+      );
+    }
+    return (
+      <Button
+        variant="contained"
+        color="primary"
+        onClick={() => sendFriendRequest(userId)}
+        disabled={loading}
+      >
+        {loading ? <CircularProgress size={24} /> : 'Add Friend'}
+      </Button>
+    );
+  };
 
-      try {
-        const user = auth.currentUser;
-        if (!user) throw new Error('User not logged in');
-
-        const friendshipDoc1 = doc(db, 'friends', `${user.uid}_${friendId}`);
-        const friendshipDoc2 = doc(db, 'friends', `${friendId}_${user.uid}`);
-        
-        //delete both directions if they exist
-        await Promise.all([
-          deleteDoc(friendshipDoc1).catch(() => {}),
-          deleteDoc(friendshipDoc2).catch(() => {}),
-        ]);
-        alert('Friend removed successfully!');
-        //refresh friend data
-        await fetchFriendData();
-      } catch (err) {
-        setError('Failed to remove friend');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const removeFriend = async friendId => {
+    setLoading(true);
+    setError('');
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Not logged in');
+      const doc1 = doc(db, 'friends', `${user.uid}_${friendId}`);
+      const doc2 = doc(db, 'friends', `${friendId}_${user.uid}`);
+      await Promise.all([
+        deleteDoc(doc1).catch(() => {}),
+        deleteDoc(doc2).catch(() => {})
+      ]);
+      alert('Friend removed!');
+      fetchFriendData();
+    } catch (err) {
+      console.error(err);
+      setError('Failed to remove friend');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Container sx={{ mt: 4 }}>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: 'text.primary' }}>
+      <Typography variant="h4" gutterBottom>
         Find Friend
       </Typography>
       {error && (
-        <Typography variant="body1" sx={{ color: 'red', mb: 2 }}>
+        <Typography color="error" sx={{ mb: 2 }}>
           {error}
         </Typography>
       )}
-      {/* Search Users */}
+
+      {/* Search */}
       <Box sx={{ mb: 4 }}>
         <TextField
           fullWidth
           label="Search by username"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={e => setSearchQuery(e.target.value)}
           sx={{ mb: 2 }}
         />
         <Button
           variant="contained"
-          color="primary"
-          onClick= {() => handleSearch()}
+          onClick={handleSearch}
           disabled={loading}
         >
           {loading ? <CircularProgress size={24} /> : 'Search'}
         </Button>
       </Box>
-      <Typography variant="h6" gutterBottom>
-        Search Results
-        </Typography>
-        <List>
-        {searchResults.map((user) => (
+
+      {/* Search Results */}
+      <Typography variant="h6">Search Results</Typography>
+      <List>
+        {searchResults.map(user => (
           <ListItem key={user.id}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
+            <Box
+              onClick={() => navigate(`/users/${user.id}`)}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                flexGrow: 1,
+                cursor: 'pointer'
+              }}
+            >
               <Avatar src={user.profilePicture} />
-              <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                {user.username}
-              </Typography>
+              <Typography>{user.username}</Typography>
             </Box>
             {renderRequestButton(user.id)}
           </ListItem>
         ))}
-        </List>
+      </List>
 
-        <Typography variant="h6" gutterBottom>
+      {/* Incoming Requests */}
+      <Typography variant="h6" sx={{ mt: 4 }}>
         Friend Requests (Received)
       </Typography>
       <List>
         {friendRequests.length === 0 ? (
-          <Typography>No incoming friend requests.</Typography>
+          <Typography>No incoming requests.</Typography>
         ) : (
-          friendRequests.map((request) => (
-            <ListItem key={request.id}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
-                <Avatar src={request.profilePicture} />
-                <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                  Request from {request.fromUsername}
-                </Typography>
+          friendRequests.map(req => (
+            <ListItem key={req.id}>
+              <Box
+                onClick={() => navigate(`/users/${req.from}`)}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  flexGrow: 1,
+                  cursor: 'pointer'
+                }}
+              >
+                <Avatar src={req.profilePicture} />
+                <Typography>Request from {req.fromUsername}</Typography>
               </Box>
               <Button
                 variant="contained"
-                color="primary"
-                onClick={() => acceptFriendRequest(request.id)}
+                onClick={() => acceptFriendRequest(req.id)}
                 disabled={loading}
               >
                 Accept
@@ -312,41 +308,50 @@ await updateDoc(requestDoc, { status: 'accepted' });
           ))
         )}
       </List>
-      <Typography variant="h6" gutterBottom>
-  Your Friends
-</Typography>
-<List>
-  {acceptedFriends.length === 0 ? (
-    <Typography>No friends yet.</Typography>
-  ) : (
-    acceptedFriends.map((friend) => (
-      <ListItem key={friend.id}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
-          <Avatar src={friend.profilePicture} />
-          <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-            {friend.username}
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={() => navigate(`/messaging/${friend.id}`)}
-        >
-          Message
-        </Button>
-        <Button 
-        variant = "outlined"
-        color = "error"
-        onClick = {() => removeFriend(friend.id)}
-        sx = {{ml: 1}}
-        >
-          Remove
-        </Button>
-      </ListItem>
-    ))
-  )}
-</List>
+
+      {/* Your Friends */}
+      <Typography variant="h6" sx={{ mt: 4 }}>
+        Your Friends
+      </Typography>
+      <List>
+        {acceptedFriends.length === 0 ? (
+          <Typography>No friends yet.</Typography>
+        ) : (
+          acceptedFriends.map(fr => (
+            <ListItem key={fr.id}>
+              <Box
+                onClick={() => navigate(`/users/${fr.id}`)}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  flexGrow: 1,
+                  cursor: 'pointer'
+                }}
+              >
+                <Avatar src={fr.profilePicture} />
+                <Typography>{fr.username}</Typography>
+              </Box>
+              <Button
+                variant="contained"
+                onClick={() => navigate(`/messaging/${fr.id}`)}
+              >
+                Message
+              </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                onClick={() => removeFriend(fr.id)}
+                sx={{ ml: 1 }}
+              >
+                Remove
+              </Button>
+            </ListItem>
+          ))
+        )}
+      </List>
     </Container>
   );
 }
+
 export default FriendsPage;

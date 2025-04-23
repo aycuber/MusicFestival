@@ -32,6 +32,7 @@ import GroupsPage from './pages/GroupsPage';
 import AccountSetup from './pages/AccountSetup';
 import FriendProfilePage from './pages/FriendProfilePage';
 import LoadingSpinner from './components/LoadingSpinner';
+import UserProfilePage from './pages/UserProfilePage';  // ← new
 
 /**
  * A small helper to store nodeRefs for each location.key,
@@ -88,6 +89,7 @@ function AnimatedRoutes() {
             <Route path="/profile/:friendId" element={<FriendProfilePage />} />
             <Route path="/messaging" element={<MessagingPage />} />
             <Route path="/messaging/:chatId" element={<MessagingPage />} />
+            <Route path="/users/:uid"    element={<UserProfilePage />} />   {/* ← new */}
           </Routes>
         </div>
       </CSSTransition>

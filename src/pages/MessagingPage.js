@@ -31,14 +31,8 @@ import {
 import { auth, db } from '../firebase';
 
 const fadeSlideIn = keyframes`
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
 `;
 
 export default function MessagingPage() {
@@ -155,15 +149,9 @@ export default function MessagingPage() {
   const sendMessage = async () => {
     if (!newMessage.trim() || !chatId) return;
     const isGroup = chatId.startsWith('group_');
-    let targetCol;
-
-    if (isGroup) {
-      const gid = chatId.replace(/^group_/, '');
-      targetCol = collection(db,'groups',gid,'messages');
-    } else {
-      const uids = [me.uid, chatId].sort().join('_');
-      targetCol = collection(db,'chats',uids,'messages');
-    }
+    const targetCol = isGroup
+      ? collection(db,'groups', chatId.replace(/^group_/, ''),'messages')
+      : collection(db,'chats',[me.uid,chatId].sort().join('_'),'messages');
 
     await addDoc(targetCol, {
       sender: me.uid,
@@ -192,7 +180,14 @@ export default function MessagingPage() {
                     onClick={() => navigate(`/messaging/${f.id}`)}
                   >
                     <ListItemAvatar>
-                      <Avatar src={f.avatar} />
+                      <Avatar
+                        src={f.avatar}
+                        sx={{ cursor:'pointer' }}
+                        onClick={e => {
+                          e.stopPropagation();
+                          navigate(`/users/${f.id}`);
+                        }}
+                      />
                     </ListItemAvatar>
                     <ListItemText primary={f.username} />
                   </ListItem>
@@ -229,26 +224,16 @@ export default function MessagingPage() {
 
   // ─── CHAT VIEW ────────────────────────────────────────────────────────────────
   return (
-    <Container sx={{ 
-      mt:4,
-      display:'flex',
-      flexDirection:'column',
-      height:'80vh' 
-    }}>
-      {/* Header with avatar + name */}
+    <Container sx={{ mt:4, display:'flex', flexDirection:'column', height:'80vh' }}>
+      {/* Header */}
       <Box sx={{ display:'flex', alignItems:'center', mb:2 }}>
         <Avatar
-          src={
-            chatId.startsWith('group_')
-              ? peerData?.avatar
-              : peerData?.avatar
-          }
-          sx={{ width:40, height:40, mr:1 }}
-        >
-          {chatId.startsWith('group_')
-            ? peerData?.name?.charAt(0)
-            : peerData?.username?.charAt(0)}
-        </Avatar>
+          src={peerData?.avatar}
+          sx={{ width:40, height:40, mr:1, cursor: chatId.startsWith('group_') ? 'default' : 'pointer' }}
+          onClick={() => {
+            if (!chatId.startsWith('group_')) navigate(`/users/${chatId}`);
+          }}
+        />
         <Typography variant="h5">
           {chatId.startsWith('group_') ? peerData?.name : peerData?.username}
         </Typography>
@@ -292,7 +277,8 @@ export default function MessagingPage() {
                   {!isMe && (
                     <Avatar
                       src={peerData?.avatar}
-                      sx={{ width:32, height:32, mr:1 }}
+                      sx={{ width:32, height:32, mr:1, cursor:'pointer' }}
+                      onClick={() => navigate(`/users/${chatId}`)}
                     />
                   )}
                   <Box sx={{ maxWidth:'70%' }}>

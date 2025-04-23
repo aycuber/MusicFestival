@@ -718,6 +718,7 @@ export default function GroupsPage() {
   // ── Helper: show username + avatar ─────────────────────────────────
   function MemberBadge({ uid }) {
     const [userData, setUserData] = useState(null);
+    const navigate = useNavigate();
     useEffect(() => {
       import('firebase/firestore').then(fs => {
         const { doc, getDoc } = fs;
@@ -729,7 +730,15 @@ export default function GroupsPage() {
 
     if (!userData) return <Typography variant="body2">{uid}</Typography>;
     return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+      <Box
+        onClick={() => navigate(`/users/${uid}`)}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0.5,
+          cursor: 'pointer'
+        }}
+      >
         <Avatar src={userData.profilePicture} sx={{ width: 24, height: 24 }} />
         <Typography variant="body2">{userData.username}</Typography>
       </Box>
