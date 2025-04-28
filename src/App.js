@@ -1,5 +1,5 @@
 // App.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BrowserRouter as Router,
   Routes,
@@ -34,22 +34,15 @@ import FriendProfilePage from './pages/FriendProfilePage';
 import LoadingSpinner from './components/LoadingSpinner';
 import UserProfilePage from './pages/UserProfilePage';  // ← new
 
-/**
- * A small helper to store nodeRefs for each location.key,
- * so each transition uses its own DOM node reference
- */
+// Node-ref map for animated transitions
 const nodeRefMap = new Map();
 
 function AnimatedRoutes() {
   const location = useLocation();
-  // Prepare a nodeRef for the current location key
-  let nodeRef = nodeRefMap.get(location.key);
-  if (!nodeRef) {
-    nodeRef = React.createRef();
-    nodeRefMap.set(location.key, nodeRef);
-  }
+  const nodeRef = nodeRefMap.get(location.key) ?? React.createRef();
+  nodeRefMap.set(location.key, nodeRef);
 
-  // Check if user is logged in
+  // current user check
   const user = auth.currentUser;
 
   return (
@@ -66,7 +59,7 @@ function AnimatedRoutes() {
             <Route path="/signup" element={<SignUp />} />
             <Route path="/login" element={<Login />} />
 
-            {/* If user not logged in, redirect to /signup for these routes */}
+            {/* protected routes */}
             <Route
               path="/profile"
               element={user ? <ProfilePage /> : <Navigate to="/signup" replace />}
@@ -80,20 +73,32 @@ function AnimatedRoutes() {
               element={user ? <MessagingPage /> : <Navigate to="/signup" replace />}
             />
 
-            {/* Other routes remain the same */}
+            {/* public/other */}
             <Route path="/explore" element={<ExplorePage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/festival/:id" element={<FestivalDetailsPage />} />
             <Route path="/groups" element={<GroupsPage />} />
             <Route path="/account-setup" element={<AccountSetup />} />
             <Route path="/profile/:friendId" element={<FriendProfilePage />} />
-            <Route path="/messaging" element={<MessagingPage />} />
             <Route path="/messaging/:chatId" element={<MessagingPage />} />
-            <Route path="/users/:uid"    element={<UserProfilePage />} />   {/* ← new */}
+            <Route path="/users/:uid" element={<UserProfilePage />} />
           </Routes>
         </div>
       </CSSTransition>
     </TransitionGroup>
+  );
+}
+
+// This inner component runs inside the Router so we can read useLocation
+function AppContent() {
+  const location = useLocation();
+
+  return (
+    <>
+      {/* hide AppBar on the account-setup screen */}
+      {location.pathname !== '/account-setup' && <MyAppBar />}
+      <AnimatedRoutes />
+    </>
   );
 }
 
@@ -135,8 +140,7 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Router>
-        {window.location.pathname !== '/account-setup' && <MyAppBar />}
-        <AnimatedRoutes />
+        <AppContent />
       </Router>
     </ThemeProvider>
   );

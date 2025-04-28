@@ -65,14 +65,9 @@ export default function GroupsPage() {
       const pub = await getDocs(query(col, where('isPublic', '==', true)));
       all.push(...pub.docs.map(d => ({ id: d.id, ...d.data() })));
 
-      if (user) {
-        // member
-        const mem = await getDocs(query(col, where('members', 'array-contains', user.uid)));
-        all.push(...mem.docs.map(d => ({ id: d.id, ...d.data() })));
-        // owner
-        const own = await getDocs(query(col, where('ownerId', '==', user.uid)));
-        all.push(...own.docs.map(d => ({ id: d.id, ...d.data() })));
-      }
+      // fetch absolutely all groups (public and private)
+      const allSnap = await getDocs(col);
+      all.push(...allSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
       // dedupe
       const map = new Map();
