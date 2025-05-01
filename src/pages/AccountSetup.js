@@ -41,7 +41,7 @@ const edmGenres = {
 function AccountSetup() {
   // Spotify config
   const SPOTIFY_CLIENT_ID = '5ef1cdc91da84a8693c3f9c810556d01';
-  const SPOTIFY_REDIRECT_URI = 'http://localhost:3000/profile';
+  const SPOTIFY_REDIRECT_URI = 'http://yourtuneapp.com/profile';
   const SPOTIFY_SCOPES = ['user-top-read', 'playlist-read-private'];
 
   // STATE

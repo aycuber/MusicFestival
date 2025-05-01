@@ -21,7 +21,7 @@ function ProfilePage() {
   // ---- SPOTIFY CONFIG ----
   const SPOTIFY_CLIENT_ID = '5ef1cdc91da84a8693c3f9c810556d01';
   // Must match the redirect URI you set in Spotify's dashboard
-  const SPOTIFY_REDIRECT_URI = 'http://localhost:3000/profile';
+  const SPOTIFY_REDIRECT_URI = 'http://yourtuneapp.com/profile';
   const SPOTIFY_SCOPES = ['user-top-read', 'playlist-read-private'];
 
   // ---- STATE ----
