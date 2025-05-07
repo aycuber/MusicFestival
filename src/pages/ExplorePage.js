@@ -14,6 +14,7 @@ import axios from 'axios';
 import { auth, db } from '../firebase';
 import { getDoc, doc } from 'firebase/firestore';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { logInteraction } from '../utils/logInteractions';
 
 export default function ExplorePage() {
   const [recommended, setRecommended] = useState([]);
@@ -313,7 +314,10 @@ export default function ExplorePage() {
               <Grid key={evt.id} item xs={12} sm={6} md={4}>
                 <Card
                   sx={cardSx}
-                  onClick={() => window.open(evt.url, '_blank')}
+                  onClick={() => {
+                    logInteraction(evt.id, 3); //Logs the interaction and places a score on the interaction for certain festival event
+                    window.open(evt.url, '_blank')
+                }}
                 >
                   <CardMedia
                     component="img"

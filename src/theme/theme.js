@@ -7,10 +7,16 @@ import {
   Typography,
   IconButton,
   Button,
-  Box
+  Box,
+  Avatar
 } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { AccountCircle, Mail, Home } from '@mui/icons-material';
+import SearchIcon from '@mui/icons-material/Search';
+import {doc, getDoc} from 'firebase/firestore';
+import {useState, useEffect} from 'react';
+import {db, auth} from "../firebase";
+import { getAuth} from 'firebase/auth';
 
 let theme = createTheme({
   palette: {
@@ -67,6 +73,29 @@ theme = responsiveFontSizes(theme);
  *    that will be rendered on every page.
  */
 export const MyAppBar = () => {
+
+const [profilePicture, setProfilePicture] = useState(null);
+
+useEffect(() => {
+  const fetchProfile = async () => {
+    const auth = getAuth();
+    const user = auth.currentUser;
+    if (user) {
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      if (userDocSnap.exists()) {
+        const data = userDocSnap.data();
+        setProfilePicture(data.profilePicture);
+      }
+    }
+  };
+
+  fetchProfile();
+}, []);
+  const user = auth.currentUser;
+  const photoURL = user ? user.photoURL : null;
+  const displayName = user?.displayName || 'Profile';
+  console.log('photoURL', photoURL)
   return (
     <AppBar id="topbar" position="static">
       <Toolbar sx={{ flexWrap: 'wrap' }}>
@@ -77,7 +106,11 @@ export const MyAppBar = () => {
           to="/"
           sx={{ mr: 1 }}
         >
-          <Home />
+        <img
+        src="/yourtune-logo.png"  // if using public folder
+        alt="YourTune"
+        style={{ height: 32, width: 'auto' }}  // adjust size as needed
+        />
         </IconButton>
 
         {/* YourTune brand text */}
@@ -104,14 +137,6 @@ export const MyAppBar = () => {
           <Button
             color="inherit"
             component={Link}
-            to="/search"
-            sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}
-          >
-            Search
-          </Button>
-          <Button
-            color="inherit"
-            component={Link}
             to="/friends"
             sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}
           >
@@ -127,6 +152,14 @@ export const MyAppBar = () => {
           >
             Groups
           </Button>
+          <IconButton
+            color="inherit"
+            component={Link}
+            to="/search"
+            sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}
+          >
+            <SearchIcon />
+          </IconButton>
 
           {/* Message Icon => navigates to "/messaging" */}
           <IconButton
@@ -139,14 +172,17 @@ export const MyAppBar = () => {
           </IconButton>
 
           {/* Profile Icon => navigates to "/profile" */}
-          <IconButton
-            color="inherit"
-            component={Link}
-            to="/profile"
-            sx={{ mt: { xs: 1, sm: 0 } }}
+          <IconButton color="inherit"
+          component = {Link}
+          to = "/profile"
+          sx = {{mr: 1, mt: {xs: 1, sm:0}}}
           >
-            <AccountCircle />
-          </IconButton>
+          {profilePicture ? (
+          <Avatar alt="User Photo" src={profilePicture} sx={{ width: 32, height: 32 }} />
+          ) : (
+          <AccountCircle sx={{ width: 32, height: 32 }} />
+          )}
+</IconButton>
         </Box>
       </Toolbar>
     </AppBar>

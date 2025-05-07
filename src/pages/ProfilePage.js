@@ -45,8 +45,59 @@ function ProfilePage() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
 
+  //spotify stuff
+  const [topArtists, setTopArtists] = useState([]);
+  const [topGenres, setTopGenres] = useState([]);
+  const [loadingSpotifyData, setLoadingSpotifyData] = useState(false);
   // Spotify tokens/data
   const [spotifyAccessToken, setSpotifyAccessToken] = useState(null);
+
+  const fetchSpotifyTopArtists = async (token) => {
+    console.log('function is actually being called');
+    if (!token) return;
+    console.log('Access token being used', token);
+
+    setLoadingSpotifyData(true);
+    try {
+      const response = await fetch('https://api.spotify.com/v1/me/top/artists?limit=10', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) throw new Error('Failed to fetch top artists');
+  
+      const data = await response.json();
+      const artists = data.items.map(artist => ({
+        name: artist.name,
+        genres: artist.genres,
+        image: artist.images[0]?.url || '',
+      }));
+      
+      //defines genres artists must be related to
+      const edmKeywords = [
+        'edm', 'electronic', 'house', 'techno', 'trance', 'dubstep',
+        'dnb', 'drum and bass', 'electro', 'hardstyle', 'disco'
+      ];
+
+      // Filter only EDM artists
+      const edmArtists = artists.filter(artist =>
+        artist.genres.some(genre =>
+          edmKeywords.some(keyword =>
+            genre.toLowerCase().includes(keyword)
+          )
+        )
+      );
+      //Update React State
+      setTopArtists(edmArtists)
+      const genres = [...new Set(artists.flatMap(artist => artist.genres))];
+      setTopGenres(genres);
+  
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingSpotifyData(false);
+    }
+  };
 
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
@@ -108,7 +159,10 @@ function ProfilePage() {
       // e.g. #access_token=ABC123&token_type=Bearer&expires_in=3600
       const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
       const token = hashParams.get('access_token');
+      console.log('testing some stuff');
       if (token) {
+        console.log('About to call fetchSpotifyTopArtists');
+        fetchSpotifyTopArtists(token);
         console.log('Got Spotify token from redirect:', token);
         setSpotifyAccessToken(token);
         saveSpotifyTokenToFirestore(token);

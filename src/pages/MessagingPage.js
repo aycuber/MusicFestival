@@ -49,6 +49,7 @@ export default function MessagingPage() {
   const [messages, setMessages] = useState([]);
   const [loadingChat, setLoadingChat] = useState(!!chatId);
   const [newMessage, setNewMessage] = useState('');
+  const [userCache, setUserCache] = useState({});
 
   // 1) If no chatId, load friends & groups for selection
   useEffect(() => {
@@ -110,6 +111,24 @@ export default function MessagingPage() {
         query(msgs, orderBy('timestamp','asc')),
         snap => {
           setMessages(snap.docs.map(d => ({ id:d.id, ...d.data() })));
+          // Collect all unique sender UIDs
+          const senderUids = [...new Set(snap.docs.map(d => d.data().sender))];
+
+// For any sender not in cache, fetch their profile
+      senderUids.forEach(uid => {
+        if (!userCache[uid]) {
+          getDoc(doc(db, 'users', uid))
+          .then(snap => {
+           const userData = snap.data();
+            setUserCache(prev => ({
+          ...prev,
+          [uid]: { profilePicture: userData?.profilePicture || '' }
+        }));
+        })
+      .catch(console.error);
+        }
+    });
+
           setLoadingChat(false);
           setTimeout(() => endRef.current?.scrollIntoView({ behavior:'smooth' }), 100);
         },
