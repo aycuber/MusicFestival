@@ -1,17 +1,94 @@
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #7e22ce; /* Purple 700 */
+  --primary-light: #a855f7; /* Purple 500 */
+  --secondary: #2dd4bf; /* Teal 400 */
+  --accent: #f97316; /* Orange 500 */
+  --background: #0f172a; /* Slate 900 */
+  --surface: #1e293b; /* Slate 800 */
+  --text-primary: #f8fafc; /* Slate 50 */
+  --text-secondary: #cbd5e1; /* Slate 300 */
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+  
+  body {
+    @apply bg-slate-900 text-slate-50 font-sans antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold leading-tight;
+  }
+
+  h1 {
+    @apply text-4xl md:text-5xl;
+  }
+
+  h2 {
+    @apply text-3xl md:text-4xl;
+  }
+
+  h3 {
+    @apply text-2xl md:text-3xl;
+  }
+
+  h4 {
+    @apply text-xl md:text-2xl;
+  }
 }
 
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center px-6 py-3 rounded-md font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-70 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-purple-700 hover:bg-purple-800 text-white focus:ring-purple-500;
+  }
+
+  .btn-secondary {
+    @apply btn bg-teal-400 hover:bg-teal-500 text-slate-900 focus:ring-teal-400;
+  }
+
+  .btn-outline {
+    @apply btn border-2 border-purple-700 text-purple-400 hover:bg-purple-700/10 focus:ring-purple-400;
+  }
+
+  .input {
+    @apply w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-md text-slate-50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent;
+  }
+
+  .card {
+    @apply bg-slate-800 rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300;
+  }
+  
+  .neon-glow {
+    @apply relative;
+    text-shadow: 0 0 10px rgba(168, 85, 247, 0.7), 
+                0 0 20px rgba(168, 85, 247, 0.5), 
+                0 0 30px rgba(168, 85, 247, 0.3);
+  }
+  
+  .event-card {
+    @apply relative overflow-hidden rounded-lg shadow-lg transition-all duration-300 hover:shadow-purple-500/20 hover:-translate-y-1;
+  }
+  
+  .waveform-bg {
+    @apply relative overflow-hidden;
+    background-image: linear-gradient(to right, 
+      rgba(5, 7, 14, 0) 0%, 
+      rgba(45, 212, 191, 0.1) 50%, 
+      rgba(5, 7, 14, 0) 100%);
+  }
+}
+
+/* Fade animations */
 .fade-enter {
   opacity: 0;
   transform: translateY(20px) scale(0.98);
@@ -33,4 +110,3 @@ code {
   transform: translateY(-20px) scale(0.98);
   transition: opacity 000ms, transform 000ms;
 }
-

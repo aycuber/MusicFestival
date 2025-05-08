@@ -29,6 +29,41 @@ function LandingPage() {
   const [isOverTopbar, setIsOverTopbar] = useState(false);
   const [topBarHeight, setTopBarHeight] = useState(64); // Default if we can't measure
 
+  // Measure top bar's actual height on mount
+  useEffect(() => {
+    const topBar = document.getElementById('topbar');
+    if (topBar) {
+      setTopBarHeight(topBar.offsetHeight || 64);
+    }
+  }, []);
+
+  // Mouse handling: skip notes if over the top bar, else spawn a note
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (e.pageY <= topBarHeight) {
+        setIsOverTopbar(true);
+        return; // no notes if over top bar
+      } else {
+        setIsOverTopbar(false);
+      }
+
+      const newNote = {
+        id: Date.now() + Math.random(),
+        x: e.pageX,
+        y: e.pageY,
+      };
+      setNotes((prev) => [...prev, newNote]);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [topBarHeight]);
+
+  // Remove note once the fade-out animation ends
+  const handleAnimationEnd = (id) => {
+    setNotes((prev) => prev.filter((note) => note.id !== id));
+  };
+
   // Determine if user is logged in
   const user = auth.currentUser;
 
@@ -39,6 +74,7 @@ function LandingPage() {
         minHeight: '100vh',
         overflow: 'hidden',
         backgroundColor: 'black',
+        cursor: isOverTopbar ? 'default' : 'none',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
@@ -47,6 +83,25 @@ function LandingPage() {
         textAlign: 'center',
       }}
     >
+      {/* Music notes trail */}
+      {notes.map((note) => (
+        <Box
+          key={note.id}
+          onAnimationEnd={() => handleAnimationEnd(note.id)}
+          sx={{
+            position: 'absolute',
+            left: note.x,
+            top: note.y - topBarHeight,
+            transform: 'translate(-50%, -50%)',
+            pointerEvents: 'none',
+            fontSize: '2.5rem',
+            animation: `${fadeOut} 1.5s forwards`,
+          }}
+        >
+          <MusicNoteIcon fontSize="inherit" />
+        </Box>
+      ))}
+
       {/* Landing Page Text & Conditional Button */}
       <Typography variant="h2" sx={{ mb: 2, color: '#fff' }}>
         Welcome to YourTune

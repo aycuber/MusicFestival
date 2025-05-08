@@ -1,52 +1,24 @@
-// src/pages/SearchPage.js
 import React, { useState, useRef } from 'react';
-import {
-  TextField,
-  Button,
-  Container,
-  Typography,
-  Box,
-  Grid,
-  Card,
-  CardMedia,
-  CardContent,
-  Paper,
-  CircularProgress,
-  Slider
-} from '@mui/material';
-import { TransitionGroup, CSSTransition } from 'react-transition-group';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Calendar, MapPin, Heart, Share2, Music, Search as SearchIcon } from 'lucide-react';
 import axios from 'axios';
 
 const TICKETMASTER_API_KEY = 'Pzo8cbC1U1UGBhAYIlUVGt2L0N4mo5oN';
 
 export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState('');
-
-  // Location
   const [locationInput, setLocationInput] = useState('');
   const [showLocPopdown, setShowLocPopdown] = useState(false);
   const locRef = useRef(null);
   const [userLat, setUserLat] = useState(null);
   const [userLng, setUserLng] = useState(null);
   const [locating, setLocating] = useState(false);
-
-  // Distance slider
-  const [distance, setDistance] = useState(10);
-
-  // Date range
+  const [distance, setDistance] = useState(50);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-
-  // Results
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Handlers
-  const handleKeyDownSearch = e => {
-    if (e.key === 'Enter') handleSearch();
-  };
-  const handleLocFocus = () => setShowLocPopdown(true);
-  const handleLocBlur = () => setTimeout(() => setShowLocPopdown(false), 200);
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
       alert('Geolocation not supported');
@@ -69,12 +41,6 @@ export default function SearchPage() {
       }
     );
   };
-  const handleLocationChange = e => {
-    setLocationInput(e.target.value);
-    setUserLat(null);
-    setUserLng(null);
-  };
-  const handleDistanceChange = (e, val) => setDistance(val);
 
   const handleSearch = async () => {
     setLoading(true);
@@ -86,16 +52,12 @@ export default function SearchPage() {
         apikey: TICKETMASTER_API_KEY,
         keyword: searchQuery,
         classificationName: 'Electronic',
-        size: 20,
+        size: 100, // Fetch more to filter
         startDateTime,
         endDateTime,
       };
 
-      if (
-        userLat !== null &&
-        userLng !== null &&
-        locationInput.includes('Using Current Location')
-      ) {
+      if (userLat !== null && userLng !== null && locationInput.includes('Using Current Location')) {
         params.latlong = `${userLat},${userLng}`;
         if (distance > 0) params.radius = distance;
       } else if (locationInput) {
@@ -117,17 +79,23 @@ export default function SearchPage() {
       const mapped = raw.map(evt => ({
         id: evt.id,
         name: evt.name,
-        image:
-          evt.images.find(i => i.ratio === '16_9')?.url ||
-          'https://via.placeholder.com/300',
-        date: evt.dates?.start?.localDate || 'Date N/A',
-        venue: evt._embedded?.venues?.[0]?.name || 'Venue N/A',
+        image: evt.images.find(i => i.ratio === '16_9')?.url || evt.images[0]?.url,
+        date: evt.dates?.start?.localDate,
+        city: evt._embedded?.venues?.[0]?.city?.name || '',
+        state: evt._embedded?.venues?.[0]?.state?.stateCode || '',
+        venue: evt._embedded?.venues?.[0]?.name || '',
+        artist: evt._embedded?.attractions?.[0]?.name || '',
         url: evt.url,
+        price: evt.priceRanges?.[0]?.min ? `$${evt.priceRanges[0].min}` : 'TBA',
+        genre: evt.classifications?.[0]?.genre?.name || 'Electronic'
       }));
 
-      // Deduplicate by id
-      const uniq = Array.from(new Map(mapped.map(e => [e.id, e])).values());
-      setEvents(uniq);
+      // Deduplicate and limit to 15 events
+      const uniqueEvents = Array.from(
+        new Map(mapped.map(e => [e.id, e])).values()
+      ).slice(0, 15);
+
+      setEvents(uniqueEvents);
     } catch (err) {
       console.error('Error fetching events:', err);
     } finally {
@@ -135,174 +103,191 @@ export default function SearchPage() {
     }
   };
 
-  // Render
   return (
-    <Container sx={{ mt: 4, mb: 6 }}>
-      <Typography
-        variant="h4"
-        gutterBottom
-        sx={{ fontWeight: 'bold', color: 'text.primary' }}
-      >
-        Find Music Events
-      </Typography>
+    <div className="min-h-screen bg-slate-900">
+      {/* Header Section */}
+      <section className="relative py-20">
+        <div className="absolute inset-0 bg-gradient-to-b from-purple-900/20 to-slate-900/95"></div>
+        
+        <div className="container mx-auto px-4 relative z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="max-w-3xl mx-auto"
+          >
+            <h1 className="text-4xl md:text-5xl font-bold mb-8 neon-glow">
+              Search Events
+            </h1>
 
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Search
-        </Typography>
+            <div className="card p-6 space-y-6">
+              {/* Search Input */}
+              <div className="relative">
+                <SearchIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  className="input pl-12"
+                  placeholder="Search by artist, event, or venue"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                />
+              </div>
 
-        <TextField
-          fullWidth
-          label="Search by artist, event, or venue"
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          onKeyDown={handleKeyDownSearch}
-          sx={{ mb: 2 }}
-        />
-
-        <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid item xs={12} sm={6}>
-            <Box sx={{ position: 'relative' }}>
-              <TextField
-                fullWidth
-                label="City or Zip"
-                value={locating ? 'Locating...' : locationInput}
-                onChange={handleLocationChange}
-                onFocus={handleLocFocus}
-                onBlur={handleLocBlur}
-                inputRef={locRef}
-                onKeyDown={handleKeyDownSearch}
-              />
-              {showLocPopdown && !locating && (
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    bgcolor: 'white',
-                    border: '1px solid #ccc',
-                    borderRadius: 1,
-                    p: 1,
-                    zIndex: 10,
-                    mt: 0.5,
-                    width: locRef.current?.offsetWidth || 200,
-                  }}
-                >
-                  <Button
-                    variant="text"
+              {/* Location */}
+              <div className="relative">
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="City or Zip Code"
+                  value={locating ? 'Locating...' : locationInput}
+                  onChange={(e) => setLocationInput(e.target.value)}
+                  onFocus={() => setShowLocPopdown(true)}
+                  onBlur={() => setTimeout(() => setShowLocPopdown(false), 200)}
+                  ref={locRef}
+                />
+                {showLocPopdown && !locating && (
+                  <button
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 btn-outline py-1 px-3"
                     onClick={handleUseCurrentLocation}
-                    sx={{ textTransform: 'none' }}
                   >
                     Use Current Location
-                  </Button>
-                </Box>
-              )}
-            </Box>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <Typography variant="body2" gutterBottom>
-              Distance (miles): {distance}
-            </Typography>
-            <Slider
-              value={distance}
-              onChange={handleDistanceChange}
-              step={5}
-              min={5}
-              max={100}
-              disabled={!locationInput && userLat == null}
-            />
-          </Grid>
-        </Grid>
+                  </button>
+                )}
+              </div>
 
-        <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              type="date"
-              label="Start Date"
-              InputLabelProps={{ shrink: true }}
-              value={startDate}
-              onChange={e => setStartDate(e.target.value)}
-              onKeyDown={handleKeyDownSearch}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              type="date"
-              label="End Date"
-              InputLabelProps={{ shrink: true }}
-              value={endDate}
-              onChange={e => setEndDate(e.target.value)}
-              onKeyDown={handleKeyDownSearch}
-            />
-          </Grid>
-        </Grid>
+              {/* Date Range */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input
+                  type="date"
+                  className="input"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+                <input
+                  type="date"
+                  className="input"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
 
-        <Button
-          variant="contained"
-          onClick={handleSearch}
-          sx={{ fontWeight: 'bold' }}
-        >
-          {locating ? <CircularProgress size={20} /> : 'Search'}
-        </Button>
-      </Paper>
+              {/* Search Button */}
+              <button
+                className="btn-primary w-full"
+                onClick={handleSearch}
+                disabled={loading}
+              >
+                {loading ? 'Searching...' : 'Search Events'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      </section>
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-          <CircularProgress />
-        </Box>
-      ) : events.length === 0 ? (
-        <Typography>No events found.</Typography>
-      ) : (
-        <Grid container spacing={3}>
-          <TransitionGroup component={null}>
-            {events.map(event => (
-              <CSSTransition key={event.id} timeout={400} classNames="card">
-                <Grid item xs={12} sm={6} md={4}>
-                  <Card
-                    onClick={() => window.open(event.url, '_blank')}
-                    sx={{
-                      cursor: 'pointer',
-                      backgroundColor: '#1E1E1E',
-                      borderRadius: 2,
-                      boxShadow: '0 4px 10px rgba(0,0,0,0.6)',
-                      overflow: 'hidden',
-                      position: 'relative',
-                      height: 300,
-                      transition: 'transform 0.3s',
-                      '&:hover': { transform: 'scale(1.04)' },
-                      '&:before': {
-                        content: '""',
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '6px',
-                        background: 'linear-gradient(90deg, #9c27b0, #e91e63)',
-                      },
-                    }}
-                  >
-                    <CardMedia
-                      component="img"
-                      height="140"
-                      image={event.image}
-                      alt={event.name}
-                      sx={{ objectFit: 'cover' }}
-                    />
-                    <CardContent sx={{ pt: 1 }}>
-                      <Typography variant="h6" sx={{ color: '#fff', mb: 1 }}>
-                        {event.name}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#fff' }}>
-                        {event.date} — {event.venue}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              </CSSTransition>
-            ))}
-          </TransitionGroup>
-        </Grid>
-      )}
-    </Container>
+      {/* Results Section */}
+      <section className="container mx-auto px-4 py-12">
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto"></div>
+          </div>
+        ) : events.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            <AnimatePresence>
+              {events.map(event => (
+                <EventCard key={event.id} event={event} />
+              ))}
+            </AnimatePresence>
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <Music className="w-12 h-12 mx-auto mb-4 text-slate-500" />
+            <p className="text-slate-400">No events found. Try adjusting your search criteria.</p>
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
+
+const EventCard = ({ event }) => {
+  const handleShare = (e) => {
+    e.stopPropagation();
+    if (navigator.share) {
+      navigator.share({
+        title: event.name,
+        text: `Check out ${event.name} featuring ${event.artist}!`,
+        url: event.url
+      });
+    } else {
+      navigator.clipboard.writeText(event.url);
+      alert('Link copied to clipboard!');
+    }
+  };
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      whileHover={{ y: -8 }}
+      className="relative aspect-[3/4] rounded-lg overflow-hidden cursor-pointer"
+      onClick={() => window.open(event.url, '_blank')}
+    >
+      {/* Background Image */}
+      <div 
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${event.image})` }}
+      />
+      
+      {/* Gradient Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
+
+      {/* Genre Tag */}
+      <div className="absolute top-4 right-4 z-10">
+        <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-500 text-white">
+          {event.genre}
+        </span>
+      </div>
+
+      {/* Content */}
+      <div className="absolute bottom-0 left-0 right-0 p-6 z-10">
+        <h3 className="text-2xl font-bold mb-2 text-white">{event.name}</h3>
+        <p className="text-lg text-teal-400 mb-4">{event.artist}</p>
+        
+        <div className="flex items-center gap-4 text-slate-300 mb-4">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4" />
+            <span>{event.date}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <MapPin className="w-4 h-4" />
+            <span>{event.city}{event.state ? `, ${event.state}` : ''}</span>
+          </div>
+        </div>
+
+        <div className="flex justify-between items-center">
+          <div className="flex gap-2">
+            <button 
+              className="p-2 rounded-full hover:bg-white/10 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                // Add to favorites logic
+              }}
+            >
+              <Heart className="w-5 h-5" />
+            </button>
+            <button 
+              className="p-2 rounded-full hover:bg-white/10 transition-colors"
+              onClick={handleShare}
+            >
+              <Share2 className="w-5 h-5" />
+            </button>
+          </div>
+          <span className="text-xl font-bold text-teal-400">{event.price}</span>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
