@@ -1,122 +1,180 @@
-.App {
-  text-align: center;
-}
-
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
-}
-
-.App-link {
-  color: #61dafb;
-}
-
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
+/* Base styles */
 body {
   margin: 0;
-  font-family: 'Roboto', sans-serif;
-  background-color: #f5f5f5;
+  font-family: 'Inter', sans-serif;
+  background-color: #030303;
+  color: #ffffff;
+  background-image: 
+    radial-gradient(circle at 100% 0%, rgba(156, 39, 176, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 0% 100%, rgba(233, 30, 99, 0.1) 0%, transparent 50%);
+  background-attachment: fixed;
 }
 
-.card-enter {
-  opacity: 0;
-  transform: translateY(30px);
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
 }
-.card-enter-active {
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #121212;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(45deg, #9c27b0, #e91e63);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(45deg, #7b1fa2, #c2185b);
+}
+
+/* Animations */
+.fade-enter {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.fade-enter-active {
   opacity: 1;
   transform: translateY(0);
-  transition: transform 0.6s, opacity 0.6s;
+  transition: opacity 600ms cubic-bezier(0.4, 0, 0.2, 1),
+              transform 600ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.zip-popdown {
-  position: absolute;
-  background-color: white;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  padding: 8px;
-  z-index: 999; /* ensure it appears on top */
-  cursor: pointer;
-}
-.zip-popdown:hover {
-  background-color: #f5f5f5;
+.fade-exit {
+  opacity: 1;
+  transform: translateY(0);
 }
 
-.MuiPickerStaticWrapper-root, 
-.MuiPaper-root.MuiDateRangePickerViewDesktop-container {
-  background-color: #1E1E1E !important;
-  color: #fff;
+.fade-exit-active {
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: opacity 600ms cubic-bezier(0.4, 0, 0.2, 1),
+              transform 600ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.MuiPickerStaticWrapper-root .MuiIconButton-root {
-  color: #fff;
+/* Card animations */
+.card-enter {
+  opacity: 0;
+  transform: translateY(30px) scale(0.95);
 }
 
-/* Dark style for the date popdown */
-.date-popdown {
-  position: absolute;
-  background-color: #1E1E1E; /* dark aesthetic */
-  color: #fff;
-  border: 1px solid #444;
-  border-radius: 6px;
-  padding: 16px;
-  z-index: 999;
-  width: 300px;
+.card-enter-active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: all 600ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.date-popdown input[type="date"] {
-  background-color: #2A2A2A;
-  color: #fff;
-  border: 1px solid #555;
-  border-radius: 4px;
-  padding: 4px;
+/* Glass effect */
+.glass {
+  background: rgba(18, 18, 18, 0.7);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 
-.date-grid {
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(45deg, #9c27b0, #e91e63);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Hover effects */
+.hover-lift {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+}
+
+/* Loading animation */
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Content padding for fixed header */
+.content-padding {
+  padding-top: 88px;
+}
+
+/* Grid layouts */
+.auto-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-  margin-top: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  padding: 24px;
 }
 
-.date-cell {
-  text-align: center;
-  padding: 6px;
+/* Card styles */
+.content-card {
+  background: linear-gradient(145deg, rgba(18, 18, 18, 0.9), rgba(30, 30, 30, 0.9));
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.content-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Button styles */
+.gradient-button {
+  background: linear-gradient(45deg, #9c27b0, #e91e63);
+  border: none;
+  border-radius: 12px;
+  color: white;
+  padding: 12px 24px;
+  font-weight: 600;
+  transition: all 0.3s ease;
   cursor: pointer;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-}
-.date-cell:hover {
-  background-color: #333;
-}
-.date-selected {
-  background-color: #9c27b0;
 }
 
+.gradient-button:hover {
+  background: linear-gradient(45deg, #7b1fa2, #c2185b);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(156, 39, 176, 0.3);
+}
 
-/* Add a modern, student-friendly font */
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+/* Input styles */
+.custom-input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: white;
+  padding: 12px 16px;
+  transition: all 0.3s ease;
+}
+
+.custom-input:focus {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(156, 39, 176, 0.5);
+  outline: none;
+}
+
+/* Avatar styles */
+.avatar {
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: linear-gradient(45deg, #9c27b0, #e91e63) border-box;
+  -webkit-mask: 
+    linear-gradient(#fff 0 0) padding-box, 
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}

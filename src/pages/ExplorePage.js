@@ -1,36 +1,45 @@
-// src/pages/ExplorePage.js
 import React, { useEffect, useState } from 'react';
-import {
-  Container,
-  Typography,
-  Grid,
-  Box,
-  Card,
-  CardMedia,
-  CardContent,
-  Button
-} from '@mui/material';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Calendar, MapPin, Heart, Share2, Music, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 import { auth, db } from '../firebase';
 import { getDoc, doc } from 'firebase/firestore';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { logInteraction } from '../utils/logInteractions';
+
+const waveVariants = {
+  animate: (i) => ({
+    scaleY: [0.2, 1, 0.2],
+    backgroundColor: [
+      'rgba(126, 34, 206, 0.3)',
+      'rgba(45, 212, 191, 0.3)',
+      'rgba(126, 34, 206, 0.3)'
+    ],
+    transition: {
+      duration: 1.5 + Math.random(),
+      repeat: Infinity,
+      repeatType: "reverse",
+      ease: "easeInOut",
+      delay: i * 0.1
+    }
+  })
+};
 
 export default function ExplorePage() {
-  const [recommended, setRecommended] = useState([]);
-  const [popular, setPopular]         = useState([]);
-  const [nearEvents, setNearEvents]   = useState([]);
-  const [prefs, setPrefs]             = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState(null);
-  const [nearMeMode, setNearMeMode]   = useState(false);
+  const [events, setEvents] = useState([]);
+  const [prefs, setPrefs] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [seenEventIds, setSeenEventIds] = useState(new Set());
 
   const TM_KEY = 'Pzo8cbC1U1UGBhAYIlUVGt2L0N4mo5oN';
-  const DEFAULT_RADIUS = 25; // miles
+  const DEFAULT_RADIUS = 100;
+  const MAX_EVENTS = 3;
 
-  // 1) Load sub-genres or default to ['EDM']
+  // Get user preferences
   useEffect(() => {
-    (async () => {
+    const fetchPrefs = async () => {
       const user = auth.currentUser;
       let subs = [];
       if (user) {
@@ -38,379 +47,363 @@ export default function ExplorePage() {
           const snap = await getDoc(doc(db, 'users', user.uid));
           const data = snap.data();
           if (data?.subGenres) {
-            Object.values(data.subGenres)
-              .flat()
-              .forEach(s => subs.push(s));
+            Object.values(data.subGenres).flat().forEach(s => subs.push(s));
             subs = Array.from(new Set(subs));
           }
-        } catch (e) {
-          console.error('Load prefs error', e);
-        }
+        } catch (e) { console.error(e); }
       }
-      if (!subs.length) subs = ['EDM'];
+      if (!subs.length) subs = ['EDM', 'Electronic'];
       setPrefs(subs);
-    })();
+    };
+    fetchPrefs();
   }, []);
 
-  // 2) Fetch recommended + popular when NOT in near-me mode
+  // Get user location
   useEffect(() => {
-    if (nearMeMode || !prefs.length) return;
-    setLoading(true);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        position => setUserLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        }),
+        err => {
+          console.log('Location not available:', err);
+          setUserLocation(false); // Set to false to indicate location fetch attempt completed
+        }
+      );
+    } else {
+      setUserLocation(false);
+    }
+  }, []);
 
-    (async () => {
-      try {
-        // Recommended (first subgenre)
-        const recResp = await axios.get(
-          'https://app.ticketmaster.com/discovery/v2/events.json',
-          {
-            params: {
-              apikey:             TM_KEY,
-              classificationName: 'Electronic',
-              keyword:            prefs[0],
-              size:               20,
-              sort:               'relevance,desc'
-            }
-          }
-        );
-        let recEv = recResp.data._embedded?.events || [];
-        recEv = recEv.map(e => ({
-          id:    e.id,
-          name:  e.name,
-          image: e.images.find(i => i.ratio === '16_9')?.url || e.images[0]?.url || '',
-          date:  e.dates?.start?.localDate,
-          venue: e._embedded?.venues?.[0]?.name || 'Unknown venue',
-          url:   e.url
-        }));
-        const seenR = new Set();
-        let recList = recEv.filter(e => {
-          if (seenR.has(e.name)) return false;
-          seenR.add(e.name);
-          return true;
-        }).slice(0, 6);
+  const fetchEvents = async (isRefresh = false) => {
+    try {
+      setRefreshing(isRefresh);
+      
+      const baseParams = {
+        apikey: TM_KEY,
+        classificationName: 'Electronic',
+        size: 100,
+        sort: 'date,asc'
+      };
 
-        // Popular pool (EDM)
-        const popResp = await axios.get(
-          'https://app.ticketmaster.com/discovery/v2/events.json',
-          {
-            params: {
-              apikey:             TM_KEY,
-              classificationName: 'Electronic',
-              size:               35,
-              sort:               'relevance,desc'
-            }
+      // Fetch both local and popular events
+      const requests = [
+        // Local events if we have location
+        userLocation && axios.get('https://app.ticketmaster.com/discovery/v2/events.json', {
+          params: {
+            ...baseParams,
+            latlong: `${userLocation.lat},${userLocation.lng}`,
+            radius: DEFAULT_RADIUS
           }
-        );
-        let popEv = popResp.data._embedded?.events || [];
-        popEv = popEv.map(e => ({
-          id:    e.id,
-          name:  e.name,
-          image: e.images.find(i => i.ratio === '16_9')?.url || e.images[0]?.url || '',
-          date:  e.dates?.start?.localDate,
-          venue: e._embedded?.venues?.[0]?.name || 'Unknown venue',
-          url:   e.url
-        }));
-        const seenP = new Set();
-        let popUnique = popEv.filter(e => {
-          if (seenP.has(e.name)) return false;
-          seenP.add(e.name);
-          return true;
+        }),
+        // Popular events based on user preferences
+        ...prefs.map(pref => 
+          axios.get('https://app.ticketmaster.com/discovery/v2/events.json', {
+            params: {
+              ...baseParams,
+              keyword: pref,
+              sort: 'relevance,desc'
+            }
+          })
+        )
+      ].filter(Boolean);
+
+      const responses = await Promise.all(requests);
+      
+      // Create a Map to store unique events by name (stricter deduplication)
+      const eventMap = new Map();
+      
+      responses.forEach(res => {
+        const events = res.data._embedded?.events || [];
+        events.forEach(e => {
+          // Create a unique key using both ID and normalized name
+          const normalizedName = e.name.toLowerCase().trim();
+          const key = `${e.id}-${normalizedName}`;
+          
+          if (!eventMap.has(key)) {
+            eventMap.set(key, {
+              id: e.id,
+              name: e.name,
+              image: e.images.find(i => i.ratio === '16_9')?.url || e.images[0]?.url,
+              date: e.dates?.start?.localDate,
+              city: e._embedded?.venues?.[0]?.city?.name || '',
+              state: e._embedded?.venues?.[0]?.state?.stateCode || '',
+              venue: e._embedded?.venues?.[0]?.name || '',
+              artist: e._embedded?.attractions?.[0]?.name || '',
+              url: e.url,
+              price: e.priceRanges?.[0]?.min ? `$${e.priceRanges[0].min}` : 'TBA',
+              genre: e.classifications?.[0]?.genre?.name || 'Electronic',
+              rank: calculateEventRank(e, userLocation)
+            });
+          }
         });
+      });
 
-        // Backfill recommended if fewer than 6
-        if (recList.length < 6) {
-          const deficit = 6 - recList.length;
-          const fill = popUnique.slice(0, deficit);
-          recList = [...recList, ...fill];
-          popUnique = popUnique.slice(deficit);
-        }
-
-        // Next 9 popular
-        let popList = popUnique.slice(0, 9);
-
-        // Fallback if fewer than 9
-        if (popList.length < 9) {
-          const fbResp = await axios.get(
-            'https://app.ticketmaster.com/discovery/v2/events.json',
-            {
-              params: {
-                apikey:             TM_KEY,
-                classificationName: 'Electronic',
-                size:               9,
-                sort:               'relevance,desc'
-              }
-            }
-          );
-          let fbEv = fbResp.data._embedded?.events || [];
-          fbEv = fbEv.map(e => ({
-            id:    e.id,
-            name:  e.name,
-            image: e.images.find(i => i.ratio === '16_9')?.url || e.images[0]?.url || '',
-            date:  e.dates?.start?.localDate,
-            venue: e._embedded?.venues?.[0]?.name || 'Unknown venue',
-            url:   e.url
-          }));
-          const taken = new Set([
-            ...recList.map(e => e.name),
-            ...popList.map(e => e.name)
-          ]);
-          for (const e of fbEv) {
-            if (popList.length === 9) break;
-            if (!taken.has(e.name)) {
-              popList.push(e);
-              taken.add(e.name);
-            }
-          }
-        }
-
-        setRecommended(recList);
-        setPopular(popList);
-        setError(null);
-      } catch (err) {
-        console.error('Fetch events error:', err);
-        setError(
-          err.response?.status === 429
-            ? 'Rate limit reached—please try again later.'
-            : 'Failed to fetch events.'
-        );
-      } finally {
-        setLoading(false);
+      // Convert Map to array and filter out seen events
+      let availableEvents = Array.from(eventMap.values())
+        .filter(event => !seenEventIds.has(event.id));
+      
+      // If we don't have enough new events, reset seen events
+      if (availableEvents.length < MAX_EVENTS) {
+        setSeenEventIds(new Set());
+        availableEvents = Array.from(eventMap.values());
       }
-    })();
-  }, [prefs, nearMeMode]);
 
-  // Handle “Only show events near me”
-  const handleNearMe = () => {
-    if (nearMeMode) {
-      setNearMeMode(false);
-      setError(null);
-      return;
-    }
-    if (!navigator.geolocation) {
-      alert('Geolocation not supported');
-      return;
-    }
-    setLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        try {
-          const res = await axios.get(
-            'https://app.ticketmaster.com/discovery/v2/events.json',
-            {
-              params: {
-                apikey:             TM_KEY,
-                classificationName: 'Electronic',
-                size:               15,
-                sort:               'relevance,desc',
-                latlong:            `${coords.latitude},${coords.longitude}`,
-                radius:             DEFAULT_RADIUS
-              }
-            }
-          );
-          let ev = res.data._embedded?.events || [];
-          ev = ev.map(e => ({
-            id:    e.id,
-            name:  e.name,
-            image: e.images.find(i => i.ratio === '16_9')?.url || e.images[0]?.url || '',
-            date:  e.dates?.start?.localDate,
-            venue: e._embedded?.venues?.[0]?.name || 'Unknown venue',
-            url:   e.url
-          }));
-          const seen = new Set();
-          ev = ev.filter(e => {
-            if (seen.has(e.name)) return false;
-            seen.add(e.name);
-            return true;
-          }).slice(0, 15);
+      // Sort by rank and take top MAX_EVENTS
+      const selectedEvents = availableEvents
+        .sort((a, b) => b.rank - a.rank)
+        .slice(0, MAX_EVENTS);
 
-          setNearEvents(ev);
-          setNearMeMode(true);
-          setError(null);
-        } catch (err) {
-          console.error('Fetch near-me error:', err);
-          setError(
-            err.response?.status === 429
-              ? 'Rate limit reached—please try again later.'
-              : 'Failed to fetch nearby events.'
-          );
-        } finally {
-          setLoading(false);
-        }
-      },
-      geoErr => {
-        console.error('Geo error:', geoErr);
-        alert('Unable to get your location.');
-        setLoading(false);
-      }
-    );
+      // Update seen events
+      setSeenEventIds(prev => {
+        const newSet = new Set(prev);
+        selectedEvents.forEach(event => newSet.add(event.id));
+        return newSet;
+      });
+
+      setEvents(selectedEvents);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to fetch events.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
-  // Shared card styling—taller card
-  const cardSx = {
-    cursor: 'pointer',
-    backgroundColor: '#1E1E1E',
-    border: '2px solid transparent',
-    borderRadius: 2,
-    boxShadow: '0 4px 10px rgba(0,0,0,0.6)',
-    overflow: 'hidden',
-    position: 'relative',
-    height: 360,              // ↑ raised from 300
-    transition: 'transform 0.3s, box-shadow 0.3s',
-    '&:hover': {
-      transform: 'scale(1.04)',
-      boxShadow: '0 8px 20px rgba(0,0,0,0.8)',
-    },
-    '&:before': {
-      content: '""',
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '6px',
-      background: 'linear-gradient(90deg, #9c27b0, #e91e63)',
-    },
+  // Calculate event rank based on multiple factors
+  const calculateEventRank = (event, userLocation) => {
+    let rank = 0;
+
+    // Popularity indicators
+    rank += event.rank || 0;
+    rank += event.totalTickets ? Math.min(event.totalTickets / 1000, 10) : 0;
+    
+    // Date proximity (prefer upcoming events)
+    const eventDate = new Date(event.dates?.start?.localDate);
+    const daysDiff = (eventDate - new Date()) / (1000 * 60 * 60 * 24);
+    if (daysDiff > 0 && daysDiff < 30) rank += 5;
+    
+    // Location proximity if available
+    if (userLocation && event._embedded?.venues?.[0]?.location) {
+      const venue = event._embedded.venues[0].location;
+      const distance = calculateDistance(
+        userLocation.lat,
+        userLocation.lng,
+        parseFloat(venue.latitude),
+        parseFloat(venue.longitude)
+      );
+      rank += Math.max(0, 10 - distance / 50); // Higher rank for closer events
+    }
+
+    // Preference matching
+    const eventGenres = [
+      event.classifications?.[0]?.genre?.name,
+      event.classifications?.[0]?.subGenre?.name,
+      event.classifications?.[0]?.segment?.name
+    ].filter(Boolean).map(g => g.toLowerCase());
+
+    prefs?.forEach(pref => {
+      if (eventGenres.some(g => g.includes(pref.toLowerCase()))) {
+        rank += 3;
+      }
+    });
+
+    return rank;
+  };
+
+  // Calculate distance between two points
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  // Only fetch events when we have both prefs and attempted location fetch
+  useEffect(() => {
+    if (prefs !== null && userLocation !== null) {
+      fetchEvents();
+    }
+  }, [prefs, userLocation]);
+
+  const handleRefresh = () => {
+    if (!refreshing) {
+      fetchEvents(true);
+    }
   };
 
   if (loading) {
     return (
-      <Box sx={{
-        width: '100vw', height: '100vh',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        bgcolor: 'black'
-      }}>
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
         <LoadingSpinner />
-      </Box>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Container sx={{ mt: 4 }}>
-        <Typography color="error">{error}</Typography>
-      </Container>
+      <div className="container mx-auto px-4 py-8">
+        <p className="text-red-500">{error}</p>
+      </div>
     );
   }
 
   return (
-    <Container sx={{ mt: 4 }}>
-      <Typography variant="h4" gutterBottom fontWeight="bold">
-        Explore Festivals
-      </Typography>
+    <div className="min-h-screen bg-slate-900">
+      {/* Background waves */}
+      <div className="fixed inset-0 z-0">
+        {[...Array(20)].map((_, i) => (
+          <motion.div
+            key={i}
+            custom={i}
+            variants={waveVariants}
+            animate="animate"
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: `${5 + i * 5}%`,
+              width: '4px',
+              height: '60%',
+              borderRadius: '4px 4px 0 0'
+            }}
+          />
+        ))}
+      </div>
 
-      <Button
-        variant="outlined"
-        onClick={handleNearMe}
-        sx={{ mb: 3 }}
-      >
-        {nearMeMode ? 'Show Recommendations' : 'Only show events near me'}
-      </Button>
+      {/* Content */}
+      <div className="relative z-10">
+        {/* Header Section */}
+        <section className="container mx-auto px-4 pt-12 pb-6">
+          <div className="flex justify-between items-center">
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="text-4xl md:text-5xl font-bold neon-glow"
+            >
+              Discover Events
+            </motion.h1>
+            
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="btn-outline flex items-center gap-2"
+              onClick={handleRefresh}
+              disabled={refreshing}
+            >
+              <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </motion.button>
+          </div>
+        </section>
 
-      {nearMeMode ? (
-        <>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Events Near You
-          </Typography>
-          <Grid container spacing={3}>
-            {nearEvents.map(evt => (
-              <Grid key={evt.id} item xs={12} sm={6} md={4}>
-                <Card
-                  sx={cardSx}
-                  onClick={() => {
-                    logInteraction(evt.id, 3); //Logs the interaction and places a score on the interaction for certain festival event
-                    window.open(evt.url, '_blank')
-                }}
-                >
-                  <CardMedia
-                    component="img"
-                    height="200"       // ↑ raised from 140
-                    image={evt.image}
-                    alt={evt.name}
-                    sx={{
-                      borderBottom: '1px solid rgba(255,255,255,0.2)',
-                      objectFit: 'cover',
-                    }}
-                  />
-                  <CardContent sx={{ pt: 1 }}>
-                    <Typography variant="h6" sx={{ color: '#fff', mb: 1, textAlign: 'left' }}>
-                      {evt.name}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#fff', textAlign: 'left' }}>
-                      {evt.date} — {evt.venue}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        </>
-      ) : (
-        <>
-          <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
-            We recommend you check out these events
-          </Typography>
-          <Grid container spacing={3} sx={{ mb: 4 }}>
-            {recommended.map(evt => (
-              <Grid key={evt.id} item xs={12} sm={6} md={4}>
-                <Card
-                  sx={cardSx}
-                  onClick={() => window.open(evt.url, '_blank')}
-                >
-                  <CardMedia
-                    component="img"
-                    height="200"
-                    image={evt.image}
-                    alt={evt.name}
-                    sx={{
-                      borderBottom: '1px solid rgba(255,255,255,0.2)',
-                      objectFit: 'cover',
-                    }}
-                  />
-                  <CardContent sx={{ pt: 1 }}>
-                    <Typography variant="h6" sx={{ color: '#fff', mb: 1, textAlign: 'left' }}>
-                      {evt.name}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#fff', textAlign: 'left' }}>
-                      {evt.date} — {evt.venue}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-
-          <Typography variant="h6" sx={{ mt: 2 }}>
-            Popular Events
-          </Typography>
-          <Grid container spacing={3}>
-            {popular.map(evt => (
-              <Grid key={evt.id} item xs={12} sm={6} md={4}>
-                <Card
-                  sx={cardSx}
-                  onClick={() => window.open(evt.url, '_blank')}
-                >
-                  <CardMedia
-                    component="img"
-                    height="200"
-                    image={evt.image}
-                    alt={evt.name}
-                    sx={{
-                      borderBottom: '1px solid rgba(255,255,255,0.2)',
-                      objectFit: 'cover',
-                    }}
-                  />
-                  <CardContent sx={{ pt: 1 }}>
-                    <Typography variant="h6" sx={{ color: '#fff', mb: 1, textAlign: 'left' }}>
-                      {evt.name}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#fff', textAlign: 'left' }}>
-                      {evt.date} — {evt.venue}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        </>
-      )}
-    </Container>
+        {/* Events Grid */}
+        <section className="container mx-auto px-4 py-8">
+          {events.length === 0 ? (
+            <div className="text-center py-12">
+              <Music className="w-12 h-12 mx-auto mb-4 text-slate-500" />
+              <p className="text-slate-400">No events found. Try refreshing.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              <AnimatePresence mode="wait">
+                {events.map(event => (
+                  <EventCard key={event.id} event={event} />
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
   );
 }
+
+const EventCard = ({ event }) => {
+  const handleShare = (e) => {
+    e.stopPropagation();
+    if (navigator.share) {
+      navigator.share({
+        title: event.name,
+        text: `Check out ${event.name} featuring ${event.artist}!`,
+        url: event.url
+      });
+    } else {
+      navigator.clipboard.writeText(event.url);
+      alert('Link copied to clipboard!');
+    }
+  };
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      whileHover={{ y: -8 }}
+      className="relative aspect-[3/4] rounded-lg overflow-hidden cursor-pointer"
+      onClick={() => window.open(event.url, '_blank')}
+    >
+      {/* Background Image */}
+      <div 
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${event.image})` }}
+      />
+      
+      {/* Gradient Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
+
+      {/* Genre Tag */}
+      <div className="absolute top-4 right-4 z-10">
+        <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-500 text-white">
+          {event.genre}
+        </span>
+      </div>
+
+      {/* Content */}
+      <div className="absolute bottom-0 left-0 right-0 p-6 z-10">
+        <h3 className="text-2xl font-bold mb-2 text-white">{event.name}</h3>
+        <p className="text-lg text-teal-400 mb-4">{event.artist}</p>
+        
+        <div className="flex items-center gap-4 text-slate-300 mb-4">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4" />
+            <span>{event.date}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <MapPin className="w-4 h-4" />
+            <span>{event.city}{event.state ? `, ${event.state}` : ''}</span>
+          </div>
+        </div>
+
+        <div className="flex justify-between items-center">
+          <div className="flex gap-2">
+            <button 
+              className="p-2 rounded-full hover:bg-white/10 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                // Add to favorites logic
+              }}
+            >
+              <Heart className="w-5 h-5" />
+            </button>
+            <button 
+              className="p-2 rounded-full hover:bg-white/10 transition-colors"
+              onClick={handleShare}
+            >
+              <Share2 className="w-5 h-5" />
+            </button>
+          </div>
+          <span className="text-xl font-bold text-teal-400">{event.price}</span>
+        </div>
+      </div>
+    </motion.div>
+  );
+};

@@ -1,24 +1,12 @@
-// App.js
 import React, { useState, useEffect } from 'react';
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  useLocation,
-  Navigate
-} from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { ThemeProvider, CssBaseline, Box } from '@mui/material';
-import {
-  onAuthStateChanged,
-  setPersistence,
-  browserLocalPersistence
-} from 'firebase/auth';
-
-import { CSSTransition, TransitionGroup } from 'react-transition-group';
-
+import { AnimatePresence, motion } from 'framer-motion';
+import { onAuthStateChanged, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { auth } from './firebase';
 import theme, { MyAppBar } from './theme/theme';
 
+// Page imports
 import LandingPage from './pages/LandingPage';
 import SignUp from './pages/SignUp';
 import Login from './pages/Login';
@@ -31,74 +19,74 @@ import FestivalDetailsPage from './pages/FestivalDetailsPage';
 import GroupsPage from './pages/GroupsPage';
 import AccountSetup from './pages/AccountSetup';
 import FriendProfilePage from './pages/FriendProfilePage';
+import UserProfilePage from './pages/UserProfilePage';
 import LoadingSpinner from './components/LoadingSpinner';
-import UserProfilePage from './pages/UserProfilePage';  // ← new
 
-// Node-ref map for animated transitions
-const nodeRefMap = new Map();
+const pageVariants = {
+  initial: {
+    opacity: 0,
+    y: 20,
+  },
+  animate: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.6,
+      ease: [0.4, 0, 0.2, 1],
+    },
+  },
+  exit: {
+    opacity: 0,
+    y: -20,
+    transition: {
+      duration: 0.4,
+      ease: [0.4, 0, 0.2, 1],
+    },
+  },
+};
 
 function AnimatedRoutes() {
   const location = useLocation();
-  const nodeRef = nodeRefMap.get(location.key) ?? React.createRef();
-  nodeRefMap.set(location.key, nodeRef);
-
-  // current user check
   const user = auth.currentUser;
 
   return (
-    <TransitionGroup component={null}>
-      <CSSTransition
-        key={location.key}
-        classNames="fade"
-        timeout={1400}
-        nodeRef={nodeRef}
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        variants={pageVariants}
+        style={{ minHeight: '100vh' }}
       >
-        <div ref={nodeRef}>
-          <Routes location={location}>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/signup" element={<SignUp />} />
-            <Route path="/login" element={<Login />} />
-
-            {/* protected routes */}
-            <Route
-              path="/profile"
-              element={user ? <ProfilePage /> : <Navigate to="/signup" replace />}
-            />
-            <Route
-              path="/friends"
-              element={user ? <FriendsPage /> : <Navigate to="/signup" replace />}
-            />
-            <Route
-              path="/messaging"
-              element={user ? <MessagingPage /> : <Navigate to="/signup" replace />}
-            />
-
-            {/* public/other */}
-            <Route path="/explore" element={<ExplorePage />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/festival/:id" element={<FestivalDetailsPage />} />
-            <Route path="/groups" element={<GroupsPage />} />
-            <Route path="/account-setup" element={<AccountSetup />} />
-            <Route path="/profile/:friendId" element={<FriendProfilePage />} />
-            <Route path="/messaging/:chatId" element={<MessagingPage />} />
-            <Route path="/users/:uid" element={<UserProfilePage />} />
-          </Routes>
-        </div>
-      </CSSTransition>
-    </TransitionGroup>
+        <Routes location={location}>
+          <Route path="/" element={<ExplorePage />} />
+          <Route path="/signup" element={<SignUp />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/profile" element={user ? <ProfilePage /> : <Login />} />
+          <Route path="/friends" element={user ? <FriendsPage /> : <Login />} />
+          <Route path="/messaging" element={user ? <MessagingPage /> : <Login />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/festival/:id" element={<FestivalDetailsPage />} />
+          <Route path="/groups" element={<GroupsPage />} />
+          <Route path="/account-setup" element={<AccountSetup />} />
+          <Route path="/profile/:friendId" element={<FriendProfilePage />} />
+          <Route path="/messaging/:chatId" element={<MessagingPage />} />
+          <Route path="/users/:uid" element={<UserProfilePage />} />
+        </Routes>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 
-// This inner component runs inside the Router so we can read useLocation
 function AppContent() {
   const location = useLocation();
-
+  
   return (
-    <>
-      {/* hide AppBar on the account-setup screen */}
+    <Box sx={{ minHeight: '100vh', pt: location.pathname !== '/account-setup' ? '72px' : 0 }}>
       {location.pathname !== '/account-setup' && <MyAppBar />}
       <AnimatedRoutes />
-    </>
+    </Box>
   );
 }
 
@@ -128,7 +116,7 @@ function App() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: 'black',
+          background: 'linear-gradient(45deg, #030303, #121212)',
         }}
       >
         <LoadingSpinner />

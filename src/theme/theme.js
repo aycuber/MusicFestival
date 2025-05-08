@@ -1,4 +1,3 @@
-// theme.js
 import React from 'react';
 import { createTheme, responsiveFontSizes } from '@mui/material/styles';
 import {
@@ -8,184 +7,224 @@ import {
   IconButton,
   Button,
   Box,
+  Container,
+  useScrollTrigger,
+  Slide,
   Avatar
 } from '@mui/material';
 import { Link } from 'react-router-dom';
-import { AccountCircle, Mail, Home } from '@mui/icons-material';
-import SearchIcon from '@mui/icons-material/Search';
-import {doc, getDoc} from 'firebase/firestore';
-import {useState, useEffect} from 'react';
-import {db, auth} from "../firebase";
-import { getAuth} from 'firebase/auth';
+import {
+  AccountCircle,
+  Mail,
+  Search,
+  Group,
+  People,
+  ExploreOutlined
+} from '@mui/icons-material';
 
 let theme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: '#9c27b0', // Vibrant purple accent
+      main: '#7e22ce', // Purple 700
+      light: '#a855f7', // Purple 500
+      dark: '#6a0080',
+      contrastText: '#ffffff'
     },
     secondary: {
-      main: '#e91e63', // Bright pink accent
+      main: '#2dd4bf', // Teal 400
+      light: '#4fd1c5',
+      dark: '#0d9488',
+      contrastText: '#ffffff'
     },
     background: {
-      default: '#121212',  // Typical dark background
-      paper: '#1E1E1E',
+      default: '#0f172a', // Slate 900
+      paper: '#1e293b', // Slate 800
+      elevated: '#334155' // Slate 700
     },
     text: {
-      primary: '#FFFFFF',
-      secondary: '#B3B3B3',
+      primary: '#f8fafc', // Slate 50
+      secondary: '#cbd5e1' // Slate 300
     },
+    divider: 'rgba(203, 213, 225, 0.08)'
   },
   typography: {
-    fontFamily: 'Montserrat, Roboto, sans-serif',
-    h6: {
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+    h1: {
+      fontWeight: 800,
+      letterSpacing: '-0.025em'
+    },
+    h2: {
       fontWeight: 700,
+      letterSpacing: '-0.02em'
     },
-    body1: {
-      lineHeight: 1.6,
+    h3: {
+      fontWeight: 700,
+      letterSpacing: '-0.015em'
     },
+    h4: {
+      fontWeight: 600,
+      letterSpacing: '-0.01em'
+    },
+    h5: {
+      fontWeight: 600
+    },
+    h6: {
+      fontWeight: 600
+    },
+    button: {
+      fontWeight: 600,
+      textTransform: 'none',
+      letterSpacing: '0.02em'
+    }
+  },
+  shape: {
+    borderRadius: 12
   },
   components: {
     MuiAppBar: {
       styleOverrides: {
         root: {
-          background: 'linear-gradient(90deg, #9c27b0 0%, #e91e63 100%)',
-          flexWrap: 'wrap',
-        },
-      },
+          background: 'rgba(15, 23, 42, 0.8)',
+          backdropFilter: 'blur(20px)',
+          borderBottom: '1px solid rgba(203, 213, 225, 0.08)'
+        }
+      }
     },
     MuiButton: {
       styleOverrides: {
         root: {
-          textTransform: 'none',
-          borderRadius: 6,
+          borderRadius: 12,
+          padding: '10px 20px',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          '&:hover': {
+            transform: 'translateY(-2px)'
+          }
         },
-      },
+        contained: {
+          background: 'linear-gradient(45deg, #7e22ce, #2dd4bf)',
+          boxShadow: '0 4px 20px rgba(126, 34, 206, 0.2)',
+          '&:hover': {
+            background: 'linear-gradient(45deg, #6b21a8, #0d9488)',
+            boxShadow: '0 8px 24px rgba(126, 34, 206, 0.3)'
+          }
+        }
+      }
     },
-  },
-});
-
-// Make typography respond to screen size
-theme = responsiveFontSizes(theme);
-
-/**
- * 2) Create a reusable top bar component
- *    that will be rendered on every page.
- */
-export const MyAppBar = () => {
-
-const [profilePicture, setProfilePicture] = useState(null);
-
-useEffect(() => {
-  const fetchProfile = async () => {
-    const auth = getAuth();
-    const user = auth.currentUser;
-    if (user) {
-      const userDocRef = doc(db, 'users', user.uid);
-      const userDocSnap = await getDoc(userDocRef);
-      if (userDocSnap.exists()) {
-        const data = userDocSnap.data();
-        setProfilePicture(data.profilePicture);
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          '& .MuiOutlinedInput-root': {
+            borderRadius: 12,
+            background: 'rgba(203, 213, 225, 0.05)',
+            '&:hover': {
+              background: 'rgba(203, 213, 225, 0.08)'
+            },
+            '&.Mui-focused': {
+              background: 'rgba(203, 213, 225, 0.1)'
+            }
+          }
+        }
       }
     }
-  };
+  }
+});
 
-  fetchProfile();
-}, []);
-  const user = auth.currentUser;
-  const photoURL = user ? user.photoURL : null;
-  const displayName = user?.displayName || 'Profile';
-  console.log('photoURL', photoURL)
+theme = responsiveFontSizes(theme);
+
+function HideOnScroll({ children }) {
+  const trigger = useScrollTrigger();
   return (
-    <AppBar id="topbar" position="static">
-      <Toolbar sx={{ flexWrap: 'wrap' }}>
-        {/* Logo/Home Icon => navigates to "/" */}
-        <IconButton
-          color="inherit"
-          component={Link}
-          to="/"
-          sx={{ mr: 1 }}
-        >
-        <img
-        src="/yourtune-logo.png"  // if using public folder
-        alt="YourTune"
-        style={{ height: 32, width: 'auto' }}  // adjust size as needed
-        />
-        </IconButton>
+    <Slide appear={false} direction="down" in={!trigger}>
+      {children}
+    </Slide>
+  );
+}
 
-        {/* YourTune brand text */}
-        <Typography
-          variant="h6"
-          sx={{
-            flexGrow: 1,
-            fontWeight: 'bold',
-            fontSize: { xs: '1rem', sm: '1.25rem' },
-          }}
-        >
-          YourTune
-        </Typography>
+export const MyAppBar = () => {
+  return (
+    <HideOnScroll>
+      <AppBar position="fixed" elevation={0}>
+        <Container maxWidth="xl">
+          <Toolbar disableGutters sx={{ height: 72 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
+              <Link to="/" style={{ display: 'flex', alignItems: 'center' }}>
+                <img 
+                  src="https://yourtuneapp.com/yourtune-logo.png"
+                  alt="YourTune"
+                  style={{
+                    height: '40px',
+                    marginRight: '16px',
+                    transition: 'transform 0.3s ease',
+                  }}
+                  onMouseOver={(e) => e.target.style.transform = 'scale(1.05)'}
+                  onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
+                />
+              </Link>
+            </Box>
 
-        <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
-          <Button
-            color="inherit"
-            component={Link}
-            to="/explore"
-            sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}
-          >
-            Explore
-          </Button>
-          <Button
-            color="inherit"
-            component={Link}
-            to="/friends"
-            sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}
-          >
-            Friends
-          </Button>
-          
-          {/* NEW: Groups button */}
-          <Button
-            color="inherit"
-            component={Link}
-            to="/groups"
-            sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}
-          >
-            Groups
-          </Button>
-          <IconButton
-            color="inherit"
-            component={Link}
-            to="/search"
-            sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}
-          >
-            <SearchIcon />
-          </IconButton>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+              {[
+                { to: "/explore", icon: <ExploreOutlined />, label: "Explore" },
+                { to: "/search", icon: <Search />, label: "Search" },
+                { to: "/friends", icon: <People />, label: "Friends" },
+                { to: "/groups", icon: <Group />, label: "Groups" }
+              ].map((item) => (
+                <Button
+                  key={item.to}
+                  component={Link}
+                  to={item.to}
+                  startIcon={item.icon}
+                  sx={{
+                    color: 'text.secondary',
+                    '&:hover': {
+                      color: 'primary.main',
+                      transform: 'translateY(-2px)',
+                      background: 'rgba(126, 34, 206, 0.08)'
+                    },
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  {item.label}
+                </Button>
+              ))}
 
-          {/* Message Icon => navigates to "/messaging" */}
-          <IconButton
-            color="inherit"
-            component={Link}
-            to="/messaging"
-            sx={{ mr: 1, mt: { xs: 1, sm: 0 } }}
-          >
-            <Mail />
-          </IconButton>
+              <IconButton
+                component={Link}
+                to="/messaging"
+                sx={{
+                  color: 'text.secondary',
+                  '&:hover': {
+                    color: 'secondary.main',
+                    transform: 'translateY(-2px)',
+                    background: 'rgba(45, 212, 191, 0.08)'
+                  },
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                <Mail />
+              </IconButton>
 
-          {/* Profile Icon => navigates to "/profile" */}
-          <IconButton color="inherit"
-          component = {Link}
-          to = "/profile"
-          sx = {{mr: 1, mt: {xs: 1, sm:0}}}
-          >
-          {profilePicture ? (
-          <Avatar alt="User Photo" src={profilePicture} sx={{ width: 32, height: 32 }} />
-          ) : (
-          <AccountCircle sx={{ width: 32, height: 32 }} />
-          )}
-</IconButton>
-        </Box>
-      </Toolbar>
-    </AppBar>
+              <IconButton
+                component={Link}
+                to="/profile"
+                sx={{
+                  background: 'linear-gradient(45deg, #7e22ce, #2dd4bf)',
+                  padding: '8px',
+                  '&:hover': {
+                    background: 'linear-gradient(45deg, #6b21a8, #0d9488)',
+                    transform: 'translateY(-2px)'
+                  },
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                <AccountCircle sx={{ color: '#fff' }} />
+              </IconButton>
+            </Box>
+          </Toolbar>
+        </Container>
+      </AppBar>
+    </HideOnScroll>
   );
 };
 
